@@ -1502,7 +1502,7 @@ function killEnemy(e, head, dir) {
   const cash = (e.type === 'brute' ? 900 : e.type === 'spitter' ? 350 : 300) + (head ? 100 : 0); money = Math.min(16000, money + cash);
   setTimeout(() => popup('+$' + cash, '#2e9a4a'), 120);
   popup((head ? 'na cabeça! ' : 'apagado! ') + '+' + pts);
-  Abates.mostra($('abates'), nomeJogador(), e.por, e.nome, head, true);
+  if (state === 'play') Abates.mostra($('abates'), nomeJogador(), e.por, e.nome, head, true); // bala que chega depois da sua morte não conta
   hitmark(true); SFX.kill();
   const p = e.g.position;
   floorSplat(p.x, 1, p.z, 2.2 * e.T.scale + rand(0, .8));

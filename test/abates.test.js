@@ -76,3 +76,23 @@ test('limpa tira tudo', () => {
   Abates.limpa(caixa);
   assert.strictEqual(caixa.children.length, 0);
 });
+
+// O feed só serve se o jogo chamar ele. Estes testes leem o game.js e conferem as ligações.
+const jogo = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'game.js'), 'utf8');
+
+test('o jogo dá nome aos bots e mostra o abate quando um deles é apagado', () => {
+  assert.match(jogo, /nome: Abates\.nomeDeBot\(\)/);
+  assert.match(jogo, /function killEnemy[\s\S]{0,600}Abates\.mostra\(\$\('abates'\), nomeJogador\(\), e\.por, e\.nome, head, true\)/);
+});
+
+test('todo golpe num inimigo diz qual foi a arma', () => {
+  const chamadas = jogo.split('
+').filter(l => l.includes('hurtEnemy(') && !l.includes('function hurtEnemy'));
+  assert.strictEqual(chamadas.length, 4);
+  for (const l of chamadas) assert.match(l, /hurtEnemy\(.*, (w\.name|'BAZUCA'|'CENÁRIO')\)/, l.trim().slice(0, 80));
+});
+
+test('a morte do jogador também entra no feed, e partida nova começa com ele vazio', () => {
+  assert.match(jogo, /P\.hp = 0; Abates\.mostra\(/);
+  assert.match(jogo, /function newGame\(\) \{[\s\S]{0,120}Abates\.limpa\(/);
+});

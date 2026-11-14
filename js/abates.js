@@ -33,8 +33,12 @@ const Abates = (() => {
     }
     caixa.appendChild(linha);
     while (caixa.children.length > MAXIMO) caixa.children[0].remove(); // a mais antiga sai
-    setTimeout(() => linha.classList.add('some'), DURACAO);            // começa a sumir
-    setTimeout(() => linha.remove(), DURACAO + 600);                   // e sai da página
+    const relogios = [
+      setTimeout(() => linha.classList.add('some'), DURACAO), // começa a sumir
+      setTimeout(() => linha.remove(), DURACAO + 600),        // e sai da página
+    ];
+    // No Node (os testes), um relógio pendente segura o programa aberto. O unref solta. No navegador ele não existe.
+    for (const relogio of relogios) if (relogio && relogio.unref) relogio.unref();
     return linha;
   }
 
