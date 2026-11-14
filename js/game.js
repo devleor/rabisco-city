@@ -520,7 +520,7 @@ function updateFalling(dt) {
     so.b.minY = ny; so.b.maxY = ny + h; so.mesh.position.y = ny;
     for (const e of enemies.slice()) {
       const ep = e.g.position;
-      if (ep.x > so.b.minX - .3 && ep.x < so.b.maxX + .3 && ep.z > so.b.minZ - .3 && ep.z < so.b.maxZ + .3 && so.b.minY < 2 * e.T.scale) hurtEnemy(e, 999, ep.clone().setY(1), new V3(0, -1, 0), false, 'CENÁRIO');
+      if (ep.x > so.b.minX - .3 && ep.x < so.b.maxX + .3 && ep.z > so.b.minZ - .3 && ep.z < so.b.maxZ + .3 && so.b.minY < ep.y + 2 * e.T.scale && so.b.maxY > ep.y) hurtEnemy(e, 999, ep.clone().setY(ep.y + 1), new V3(0, -1, 0), false, 'CENÁRIO');
     }
     if (P.pos.x > so.b.minX - .3 && P.pos.x < so.b.maxX + .3 && P.pos.z > so.b.minZ - .3 && P.pos.z < so.b.maxZ + .3 && so.b.minY < P.pos.y + 1.75 && so.b.maxY > P.pos.y + .5 && !so.hitPlayer) { so.hitPlayer = true; damagePlayer(20); }
     if (hit) {
@@ -1205,7 +1205,7 @@ function explode(p, n, dmg) {
   SFX.boom(.5 + near * .6); onomato('KABOOM!', true);
   shake = Math.max(shake, .2 + near * .5); flashFxT = Math.max(flashFxT, .2 + near * .6); fovKick = Math.max(fovKick, near * 8);
   for (const e of enemies.slice()) {
-    const c = e.g.position.clone(); c.y = 1.1 * e.T.scale;
+    const c = e.g.position.clone(); c.y += 1.1 * e.T.scale;
     const d = c.distanceTo(p);
     if (d < R + .4 * e.T.scale) {
       const k = 1 - Math.min(1, d / R) * .7;
@@ -1373,7 +1373,7 @@ const PEN = (() => {
 })();
 function makeEnemy(type, x, z) {
   const T0 = TYPES[type], g = new THREE.Group(), th = T0.th;
-  const e = { type, nome: Abates.nomeDeBot(), T: T0, g, hp: T0.hp * (1 + (wave - 1) * .08), vel: new V3(), wind: 0, cd: rand(.6, 1.4), stuck: 0, detour: 0, dDir: 1, walk: rand(0, 6), amp: 0, flash: 0, flinch: 0, slam: 0, drawT: 0, drawIdx: -1, parts: [], strafe: Math.random() < .5 ? -1 : 1, dead: false, power: 5 };
+  const e = { type, nome: Abates.nomeDeBot(), T: T0, g, hp: T0.hp * (1 + (wave - 1) * .08), vel: new V3(), wind: 0, cd: rand(.6, 1.4), stuck: 0, detour: 0, dDir: 1, vy: 0, sobe: false, walk: rand(0, 6), amp: 0, flash: 0, flinch: 0, slam: 0, drawT: 0, drawIdx: -1, parts: [], strafe: Math.random() < .5 ? -1 : 1, dead: false, power: 5 };
   const mat = new THREE.MeshBasicMaterial({ color: type === 'brute' ? 0x1d2b8f : INK });
   e.mat = mat; e.baseHex = mat.color.getHex(); e.base = mat.color.clone();
   const hipY = .95;
@@ -1416,7 +1416,7 @@ function makeEnemy(type, x, z) {
   hb(new THREE.BoxGeometry(.46, .72, .34), body, .32, false);
   hb(new THREE.SphereGeometry(hr + .07, 8, 6), head, 0, true);
   hb(new THREE.BoxGeometry(.42, hipY, .32), g, hipY / 2, false);
-  const sh = new THREE.Mesh(blobGeo, blobMat); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; g.add(sh);
+  const sh = new THREE.Mesh(blobGeo, blobMat); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; g.add(sh); e.sh = sh;
   e.pieces = [e.legs[0].userData.grow, e.shins[0].userData.grow, e.legs[1].userData.grow, e.shins[1].userData.grow, torso.userData.grow];
   if (e.belly) e.pieces.push(e.belly);
   e.pieces.push(e.arms[0].userData.grow, e.fores[0].userData.grow, e.arms[1].userData.grow, e.fores[1].userData.grow, face);
@@ -1505,9 +1505,9 @@ function killEnemy(e, head, dir) {
   if (state === 'play') Abates.mostra($('abates'), nomeJogador(), e.por, e.nome, head, true); // bala que chega depois da sua morte não conta
   hitmark(true); SFX.kill();
   const p = e.g.position;
-  floorSplat(p.x, 1, p.z, 2.2 * e.T.scale + rand(0, .8));
-  for (let i = 0; i < 3; i++) floorSplat(p.x + rand(-1.5, 1.5) + dir.x * 1.5, 1, p.z + rand(-1.5, 1.5) + dir.z * 1.5, rand(.4, 1));
-  burst(p.clone().setY(1.4 * e.T.scale), 28, 6);
+  floorSplat(p.x, p.y + 1, p.z, 2.2 * e.T.scale + rand(0, .8));
+  for (let i = 0; i < 3; i++) floorSplat(p.x + rand(-1.5, 1.5) + dir.x * 1.5, p.y + 1, p.z + rand(-1.5, 1.5) + dir.z * 1.5, rand(.4, 1));
+  burst(p.clone().setY(p.y + 1.4 * e.T.scale), 28, 6);
   const ix = enemies.indexOf(e); if (ix >= 0) enemies.splice(ix, 1); hitDirty = true;
   shatter(e, dir, e.power);
   const r = Math.random();
@@ -1534,7 +1534,7 @@ function los(from, to) {
 const spitGeo = new THREE.IcosahedronGeometry(.2, 1);
 const spitMat = new THREE.MeshBasicMaterial({ color: RED });
 function spit(e) {
-  const s = e.T.scale, from = e.g.position.clone(); from.y = (.95 + .64 + e.hr) * s;
+  const s = e.T.scale, from = e.g.position.clone(); from.y += (.95 + .64 + e.hr) * s;
   const fwd = new V3(Math.sin(e.g.rotation.y), 0, Math.cos(e.g.rotation.y));
   from.addScaledVector(fwd, .45);
   const target = P.pos.clone(); target.y += 1.2;
@@ -1594,9 +1594,9 @@ function fire() {
     let hit = false;
     for (const e of enemies.slice()) {
       const ex = e.g.position.x, ez = e.g.position.z, dx = ex - P.pos.x, dz = ez - P.pos.z, d = Math.hypot(dx, dz);
-      const dy = (P.pos.y + 1.2) - 1.3 * e.T.scale;
+      const ey = e.g.position.y, dy = (P.pos.y + 1.2) - ey - 1.3 * e.T.scale;
       if (d < range + .4 * e.T.scale && Math.abs(dy) < 2.6 && (dx * _f.x + dz * _f.z) / (d || 1) > .4) {
-        hurtEnemy(e, w.dmg * bonus, new V3(ex, clamp(P.pos.y + 1.2, .5, 1.7 * e.T.scale), ez), _f.clone(), false, w.name); hit = true;
+        hurtEnemy(e, w.dmg * bonus, new V3(ex, clamp(P.pos.y + 1.2, ey + .5, ey + 1.7 * e.T.scale), ez), _f.clone(), false, w.name); hit = true;
       }
     }
     if (hit) { shake = .12; if (speed > 12) popup('CORTE AÉREO!', '#2a3fb0'); }
@@ -2127,6 +2127,7 @@ function update(dt) {
   }
 
   // inimigos
+  alto = Escalada.predio(boxes, { x: P.pos.x, y: P.pos.y, z: P.pos.z, noChao: P.onGround }, alto);
   for (const e of enemies.slice()) updateEnemy(e, dt);
   updateDebris(dt);
   updateBullets(dt);
@@ -2209,7 +2210,14 @@ function nearestNode(x, z) {
   }
   return best || any;
 }
-const _prev = new V3(), _sep = new V3();
+const _prev = new V3(), _sep = new V3(), _mao = new V3();
+let alto = null; // o prédio em que o jogador está em cima (null no chão). É o único que os bonecos escalam.
+// Tem parede na frente do boneco, na altura em que ele está? Dá um passo de mentira e vê se algum bloco empurra de volta.
+function temParede(e, nx, nz) {
+  const r = .42 * e.T.scale, x = e.g.position.x + nx * .3, z = e.g.position.z + nz * .3;
+  _mao.set(x, 0, z); pushOut(_mao, r, e.g.position.y, 1.8);
+  return Math.hypot(_mao.x - x, _mao.z - z) > 1e-4;
+}
 function updateEnemy(e, dt) {
   const g = e.g, T0 = e.T, sc = T0.scale;
   e.head.getWorldQuaternion(_q); e.face.quaternion.copy(_q.invert().multiply(camera.quaternion));
@@ -2241,23 +2249,35 @@ function updateEnemy(e, dt) {
   } else {
     if (dist > T0.reach + .2) { wx = dirx * speed; wz = dirz * speed; }
   }
+  // escalada: só existe alvo quando o jogador está em cima de um prédio. Sem alvo, o caminho acima vale como sempre.
+  const alvo = alto && e.type !== 'spitter' && g.position.y < alto.maxY - .1 ? alto : null;
+  if (!alvo) e.sobe = false;
+  let nx = 0, nz = 0, longe = 0; // pra que lado fica a parede, e a que distância
+  if (alvo) { const q = Escalada.distancia(alvo, g.position.x, g.position.z); longe = q.d; if (q.d > .01) { nx = (q.x - g.position.x) / q.d; nz = (q.z - g.position.z) / q.d; } else { nx = dirx; nz = dirz; } }
+  const perto = !!alvo && longe < 6;
+  if (perto) {
+    const k = e.sobe ? .5 : 1; wx = nx * speed * k; wz = nz * speed * k;
+    if (e.detour > 0 && !e.sobe) { e.detour -= dt; wx = -nz * e.dDir * speed; wz = nx * e.dDir * speed; }
+  } else if (g.position.y > .6) { // já está em cima de alguma coisa: vai reto no jogador (e despenca da beirada se ele desceu)
+    wx = wz = 0; e.detour = 0; if (dist > T0.reach + .2) { wx = dirx * speed; wz = dirz * speed; }
+  }
   if (e.type === 'spitter') {
     if (e.cd <= 0 && dist < 34) {
       e.cd = T0.cd * rand(.8, 1.3);
-      const from = g.position.clone(); from.y = (1.6 + e.hr) * sc;
+      const from = g.position.clone(); from.y += (1.6 + e.hr) * sc;
       const to = P.pos.clone(); to.y += 1.3;
       if (los(from, to)) { e.wind = .3; e.spitPending = true; } else e.cd = .5;
     }
-  } else if (dist < T0.reach + .5 && e.wind <= 0 && e.cd <= 0 && P.pos.y < 1.2) e.wind = .38;
+  } else if (dist < T0.reach + .5 && e.wind <= 0 && e.cd <= 0 && !e.sobe && Math.abs(P.pos.y - g.position.y) < 1.2) e.wind = .38;
   if (e.wind > 0) {
     e.wind -= dt;
     if (e.wind <= 0 && e.type === 'spitter') { e.slam = .22; if (e.spitPending) { e.spitPending = false; spit(e); } }
     if (e.wind <= 0 && e.type !== 'spitter') {
-      if (dist < T0.reach + .7 && P.pos.y < 1.4) damagePlayer(T0.dmg + wave * .5, e.nome, e.type === 'brute' ? 'PANCADA' : 'SOCO');
+      if (dist < T0.reach + .7 && Math.abs(P.pos.y - g.position.y) < 1.4) damagePlayer(T0.dmg + wave * .5, e.nome, e.type === 'brute' ? 'PANCADA' : 'SOCO');
       e.cd = T0.cd; e.slam = .22;
     }
   }
-  if (e.direct && e.detour > 0) { e.detour -= dt; wx = -dirz * e.dDir * speed; wz = dirx * e.dDir * speed; }
+  if (e.direct && e.detour > 0 && !perto && g.position.y <= .6) { e.detour -= dt; wx = -dirz * e.dDir * speed; wz = dirx * e.dDir * speed; }
   // separação
   _sep.set(0, 0, 0);
   for (const o of enemies) {
@@ -2269,20 +2289,37 @@ function updateEnemy(e, dt) {
   g.position.x += (wx + e.vel.x) * dt + _sep.x * .5;
   g.position.z += (wz + e.vel.z) * dt + _sep.z * .5;
   e.vel.multiplyScalar(Math.max(0, 1 - dt * 6));
-  pushOut(g.position, .42 * sc, -1, 1.8);
+  const noChao = g.position.y < .05; // no chão a colisão é a de sempre: todo bloco é parede
+  pushOut(g.position, .42 * sc, noChao ? -1 : g.position.y, 1.8);
+  if (perto && !e.sobe && longe < .42 * sc + 2.5 && temParede(e, nx, nz)) e.sobe = true; // encostou na parede do prédio do jogador
+  let subiu = 0;
+  if (e.sobe) {
+    subiu = (e.type === 'brute' ? 1.9 : 3.4) * dt; g.position.y += subiu; e.vy = 0;
+    if (!temParede(e, nx, nz)) { // não tem mais parede na frente
+      const hx = g.position.x + nx * .7 * sc, hz = g.position.z + nz * .7 * sc;
+      if (groundAt(hx, hz, g.position.y, .25 * sc) > g.position.y - STEP) { g.position.x = hx; g.position.z = hz; } // ela acabou: pula pra cima do teto
+      e.sobe = false; // senão foi um tiro que arrancou ele da parede: solta e cai
+    }
+  }
+  if (!e.sobe) { // gravidade: quem não está agarrado na parede cai até o que tiver embaixo
+    const chao = noChao && !subiu ? 0 : groundAt(g.position.x, g.position.z, g.position.y, .25 * sc);
+    e.vy -= 22 * dt; g.position.y += e.vy * dt;
+    if (g.position.y <= chao) { g.position.y = chao; e.vy = 0; }
+  }
+  e.sh.visible = !e.sobe && e.vy === 0;
   // personagem não entra no jogador
   const pdx = g.position.x - P.pos.x, pdz = g.position.z - P.pos.z, pd = Math.hypot(pdx, pdz), pmin = .42 * sc + .45;
-  if (pd < pmin && pd > .001 && P.pos.y < 1.5) { g.position.x = P.pos.x + pdx / pd * pmin; g.position.z = P.pos.z + pdz / pd * pmin; }
+  if (pd < pmin && pd > .001 && Math.abs(P.pos.y - g.position.y) < 1.5) { g.position.x = P.pos.x + pdx / pd * pmin; g.position.z = P.pos.z + pdz / pd * pmin; }
   const moved = Math.hypot(g.position.x - _prev.x, g.position.z - _prev.z);
   const wl = Math.hypot(wx, wz);
-  if (wl > .5 && moved < wl * dt * .35) { e.stuck += dt; if (e.stuck > .35) { e.detour = rand(.6, 1.5); e.dDir = Math.random() < .5 ? -1 : 1; e.stuck = 0; } }
+  if (!e.sobe && wl > .5 && moved < wl * dt * .35) { e.stuck += dt; if (e.stuck > .35) { e.detour = rand(.6, 1.5); e.dDir = Math.random() < .5 ? -1 : 1; e.stuck = 0; } }
   else e.stuck = Math.max(0, e.stuck - dt);
   // animação do boneco de palito
-  const ty = (e.direct || (!wx && !wz)) ? Math.atan2(dirx, dirz) : Math.atan2(wx, wz);
+  const ty = e.sobe ? Math.atan2(nx, nz) : (e.direct || (!wx && !wz)) ? Math.atan2(dirx, dirz) : Math.atan2(wx, wz);
   let dr = ty - g.rotation.y; while (dr > Math.PI) dr -= Math.PI * 2; while (dr < -Math.PI) dr += Math.PI * 2;
   g.rotation.y += dr * Math.min(1, dt * 10);
-  e.walk += moved * 2.7 / sc;
-  e.amp += ((moved / Math.max(dt, 1e-4) > .5 ? 1 : 0) - e.amp) * Math.min(1, dt * 8);
+  e.walk += (moved * 2.7 + subiu * 3.2) / sc;
+  e.amp += ((e.sobe || moved / Math.max(dt, 1e-4) > .5 ? 1 : 0) - e.amp) * Math.min(1, dt * 8);
   const a = e.amp, ph = e.walk;
   for (let i = 0; i < 2; i++) {
     const p = ph + i * Math.PI;
@@ -2300,6 +2337,14 @@ function updateEnemy(e, dt) {
   } else {
     for (let i = 0; i < 2; i++) { e.arms[i].rotation.x = Math.sin(ph + i * Math.PI) * .85 * a; e.fores[i].rotation.x = -(.45 + .5 * a); }
   }
+  if (e.sobe) { // escalando: braços pra cima e joelhos abertos, uma mão e um pé de cada vez
+    lean = .1;
+    for (let i = 0; i < 2; i++) {
+      const u = Math.sin(ph + i * Math.PI);
+      e.arms[i].rotation.x = -2.5 + u * .45; e.fores[i].rotation.x = -.45 - Math.max(0, -u) * .9;
+      e.legs[i].rotation.x = -1 - u * .45; e.legs[i].rotation.z = (i ? 1 : -1) * .55; e.shins[i].rotation.x = 1.5 + u * .5;
+    }
+  } else for (let i = 0; i < 2; i++) e.legs[i].rotation.z = 0;
   if (e.flinch > 0) { e.flinch -= dt; lean -= e.flinch * 4; }
   e.body.rotation.x += (lean - e.body.rotation.x) * Math.min(1, dt * 14);
   e.body.position.y = .95 + Math.abs(Math.sin(ph)) * .05 * a + (a < .3 ? Math.sin(performance.now() / 300 + e.walk) * .012 : 0);
