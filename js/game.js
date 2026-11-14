@@ -1,6 +1,5 @@
-// RABISCO CITY, etapa 6: a arma e o tiro.
-// Uma pistola desenhada com caixas na frente da câmera, e um tiro que é um raio:
-// uma linha reta, do olho pra frente, até a primeira coisa em que ela bate.
+// RABISCO CITY, etapa 7: o som.
+// Nenhum arquivo de áudio: cada som é fabricado na hora, com chiado e apito, pela Web Audio do navegador.
 (() => {
 'use strict';
 
@@ -522,6 +521,66 @@ function updateFx(dt) {
   }
 }
 
+// ---------- som ----------
+// A Web Audio funciona como uma mesa de som: caixinhas ligadas por fios. Uma caixinha gera o som,
+// outra filtra, outra controla o volume, e a última é o alto-falante.
+let AC = null, master = null, noiseBuf = null;
+// O navegador só deixa uma página fazer barulho depois que a pessoa clica em alguma coisa.
+// Por isso o áudio é ligado no clique do botão JOGAR, e não quando a página abre.
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    // O compressor segura os picos: vários sons juntos não estouram a caixa de som.
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = .002; comp.release.value = .25;
+    master = AC.createGain(); // o volume geral
+    master.gain.value = .45;
+    master.connect(comp);
+    comp.connect(AC.destination); // destination é o alto-falante
+  } catch (e) { AC = null; } // sem áudio o jogo continua, só fica mudo
+}
+// Um chiado. Ruído é um monte de números sorteados: o som de TV fora do ar.
+// O filtro escolhe que parte dele passa: f é a frequência do filtro (alto = chiado fino, baixo = estrondo),
+// e f2, se vier, é pra onde ela escorrega até o fim. dur é a duração em segundos.
+function sNoise(dur, f, q = 1, vol = .5, type = 'lowpass', delay = 0, f2 = 0) {
+  if (!AC) return;
+  if (!noiseBuf) { // dois segundos de ruído, sorteados uma vez e reaproveitados
+    noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const t = AC.currentTime + delay, s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = noiseBuf; s.loop = true;
+  fl.type = type; fl.frequency.setValueAtTime(f, t); fl.Q.value = q;
+  if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  // O volume sobe de quase nada até vol em 4 milésimos e depois cai até sumir. Esse desenho se chama envelope.
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(vol, t + .004); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  s.connect(fl); fl.connect(g); g.connect(master); // os fios: ruído, filtro, volume, mesa
+  s.start(t, Math.random()); s.stop(t + dur + .05);
+}
+// Um apito que escorrega da frequência f1 até a f2. type é o formato da onda:
+// 'sine' é liso, 'square' é de videogame antigo, 'triangle' fica no meio, 'sawtooth' é áspero.
+function sTone(f1, f2, dur, vol = .3, type = 'square', delay = 0) {
+  if (!AC) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(vol, t + .004); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + .02);
+}
+// Os sons do jogo. Cada um é uma receita: uns chiados e uns apitos tocados juntos.
+const SFX = {
+  // O tiro: um estalo agudo, um estrondo que desce de 2200 pra 300 e um grave liso por baixo.
+  pistola: () => { sNoise(.06, 6500, .7, .6, 'highpass'); sNoise(.28, 2200, .6, .65, 'lowpass', 0, 300); sTone(150, 45, .16, .5, 'sine'); },
+  // A bala batendo na parede.
+  hit: () => sTone(900, 650, .05, .1),
+  // O passo: um chiado curtinho, cada vez num tom um pouco diferente.
+  draw: () => sNoise(.07, rand(2200, 3600), 3, .07, 'bandpass'),
+  // Cair de uma altura.
+  land: () => { sTone(90, 40, .15, .4, 'sine'); sNoise(.1, 600, 1, .3); },
+};
+
 // ---------- armas (viewmodel) ----------
 // Viewmodel é o nome do modelo da arma que aparece na frente da câmera em jogo de tiro.
 const hold = new THREE.Group(); // a "mão": tudo que está nela balança e dá coice junto
@@ -626,6 +685,7 @@ function pause() {
 }
 // O navegador só deixa prender o mouse em resposta a um clique. Por isso o jogo começa num botão.
 $('play').addEventListener('click', () => {
+  initAudio();
   state = 'play';
   $('menu').classList.add('hidden');
   $('hud').classList.remove('hidden');
@@ -639,6 +699,7 @@ const ray = new THREE.Raycaster();
 const _f = new V3(), _r = new V3(), _u = new V3(); // frente, direita e cima da câmera
 function fire() {
   ARMA.timer = ARMA.rate;
+  SFX.pistola();
   recoil = 1;
   flashT = .06;
   flash.material.rotation = Math.random() * 6; // cada clarão num ângulo
@@ -665,6 +726,7 @@ function fire() {
     // A normal da face vem no espaço do objeto. O transformDirection passa ela pro espaço do mundo.
     const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
     addDecal(h.point, n, INK_DOTS[Math.floor(Math.random() * 3)], rand(.14, .26));
+    SFX.hit();
   }
 }
 
@@ -718,7 +780,10 @@ function update(dt) {
   }
   // O chão já não é sempre o zero: é o topo do que estiver embaixo dos pés.
   const gy = groundAt(P.pos.x, P.pos.z, Math.max(prevY, P.pos.y), .3);
-  if (P.pos.y <= gy) { P.pos.y = gy; P.vy = 0; P.onGround = true; }
+  if (P.pos.y <= gy) {
+    if (P.vy < -9) SFX.land(); // chegou no chão caindo rápido
+    P.pos.y = gy; P.vy = 0; P.onGround = true;
+  }
   else P.onGround = P.pos.y - gy < .02; // saiu da beirada de um caixote: está no ar
 
   // A câmera fica na altura dos olhos, 1,62 acima dos pés.
@@ -736,7 +801,12 @@ function update(dt) {
   // Onde a arma fica na tela: embaixo, à direita. Andando ela balança (o seno e o cosseno fazem um oito),
   // e no coice ela vem pra trás e levanta o cano.
   const hsp = Math.hypot(P.vel.x, P.vel.z);
-  if (P.onGround && hsp > .5) bobT += dt * hsp * 1.6;
+  if (P.onGround && hsp > .5) {
+    const antes = bobT;
+    bobT += dt * hsp * 1.6;
+    // A cada meia volta do balanço, um pé bate no chão. O som do passo sai junto com o balanço da arma.
+    if (Math.floor(antes / Math.PI) !== Math.floor(bobT / Math.PI)) SFX.draw();
+  }
   hold.position.set(.17 + Math.cos(bobT) * .006, -.17 - Math.abs(Math.sin(bobT)) * .008, -.42 + recoil * .05);
   hold.rotation.set(recoil * .16, 0, 0);
 }
