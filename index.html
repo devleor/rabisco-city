@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rabisco City</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- O canvas é a tela em branco onde o Three.js pinta o jogo. -->
+<canvas id="c"></canvas>
+<!-- Duas camadas por cima do jogo: as linhas da folha de caderno e o grão do papel. -->
+<div id="paper"></div>
+<div id="grain"></div>
+
+<!-- O Three.js vem pronto da internet: uma linha, e a biblioteca inteira fica disponível como THREE. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- O nosso jogo. Vem depois, porque usa o THREE. -->
+<script src="js/game.js"></script>
+</body>
+</html>
