@@ -39,7 +39,11 @@ Abra `http://localhost:8000` (ou a porta que aparecer). Precisa de teclado e mou
 
 ## Armas
 
-UZI · AK-47 · Pistola · Escopeta · Sniper (atravessa inimigos) · Bazuca (explosão em área, dá pra fazer rocket jump) · Régua (corpo a corpo, mais forte voando no gancho).
+UZI · AK-47 · Pistola · Escopeta · Sniper (atravessa inimigos) · Bazuca (explosão em área, destrói o cenário, dá pra fazer rocket jump) · Régua (corpo a corpo, mais forte voando no gancho).
+
+## Cenário destrutível
+
+Os prédios são feitos de andares empilhados. A explosão da bazuca destrói andares, caixas, muros e postes; o que fica sem apoio desaba e esmaga os bonecos que estiverem embaixo. O cenário volta ao normal quando a partida recomeça.
 
 ## Estrutura
 
