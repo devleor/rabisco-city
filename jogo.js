@@ -14,12 +14,13 @@ const LINHAS = [[0, 1, 2], [3, 4, 5], [6, 7, 8],
 
 // Alguma linha tem as três casas iguais, e não vazias?
 function ganhou() {
-  return LINHAS.some(([a, b, c]) => casas[a] !== '' && casas[a] === casas[b] && casas[b] === casas[c]);
+  return LINHAS.some(([a, b, c]) =>
+    casas[a] !== '' && casas[a] === casas[b] && casas[b] === casas[c]);
 }
 
 // Alguém clicou na casa de número i.
 function joga(i) {
-  if (acabou || casas[i] !== '') return; // jogo acabado ou casa ocupada: nada acontece
+  if (acabou || casas[i] !== '') return; // acabou, ou a casa já tem dono
   casas[i] = vez;
   botoes[i].textContent = vez;
   botoes[i].className = vez;             // o CSS usa isso pra pintar o X e o O

@@ -1,9 +1,10 @@
 /* As duas letras de mão, as mesmas do Rabisco City. */
-@import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap');
+@import url('https://fonts.googleapis.com/css?family=Gochi+Hand|Patrick+Hand');
 
 /* A página: cor de papel, linhas de caderno e tinta azul. */
 body {
-  background: #f3eedf repeating-linear-gradient(transparent 0 31px, rgba(42, 63, 176, .16) 31px 32px);
+  background: #f3eedf repeating-linear-gradient(
+    transparent 0 31px, rgba(42, 63, 176, .16) 31px 32px);
   color: #2a3fb0;
   font-family: 'Patrick Hand', cursive;
   text-align: center;
