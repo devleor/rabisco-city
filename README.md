@@ -3,6 +3,10 @@
 Tiro em primeira pessoa 3D no navegador, todo desenhado à caneta numa folha de caderno.
 Bonecos de palito invadem uma cidade debaixo de uma cúpula — sobreviva às ondas.
 
+![O jogo rodando: AK-47, mira em cruz e feed de abates](docs/jogo.gif)
+
+**Jogue agora: https://rabisco-city.vercel.app** (precisa de teclado e mouse)
+
 Feito com **Three.js (r128)** + JavaScript puro. Sem build. O jogo e o servidor local não têm dependências; só a API na Vercel usa o pacote `@vercel/blob`.
 
 ## Rodar localmente
@@ -11,9 +15,34 @@ Feito com **Three.js (r128)** + JavaScript puro. Sem build. O jogo e o servidor 
 node server.js
 ```
 
-Abra `http://localhost:3333`. Precisa de teclado e mouse. O `server.js` não tem dependências: ele entrega os arquivos do jogo e responde a API do placar, guardando os dados em `dados/placar.json`.
+Abra **http://localhost:3333**. Precisa de teclado e mouse. A porta é sempre a 3333, aqui e em todas as etapas do passo a passo. O `server.js` não tem dependências: ele entrega os arquivos do jogo e responde a API do placar, guardando os dados em `dados/placar.json`.
 
-Qualquer servidor estático (`npx serve .`, `python3 -m http.server`) também abre o jogo, só que sem placar.
+Qualquer servidor estático (`npx serve -l 3333 .`, `python -m http.server 3333`) também abre o jogo na mesma porta, só que sem placar.
+
+## Passo a passo
+
+O jogo também existe construído em etapas, uma branch pra cada. Cada uma roda sozinha e tem um README próprio, com o que olhar no código e um GIF do que aparece na tela (menos a etapa 7, que é só som).
+
+| Branch | O que entra |
+| --- | --- |
+| `etapa-00-jogo-da-velha` | antes de tudo: um jogo da velha em HTML, JavaScript e CSS |
+| `etapa-01-a-folha` | a página, a cena, a câmera, o renderer, o chão e uma caixa |
+| `etapa-02-traco-de-caneta` | texturas de hachura desenhadas em canvas e o contorno que "ferve" |
+| `etapa-03-a-cidade` | ruas, quarteirões sorteados com semente, parque, andaime, lápis gigante e cúpula |
+| `etapa-04-andar` | menu, mouse preso, olhar em volta, WASD, correr e pular |
+| `etapa-05-colisao` | um colisor de caixa pra cada peça do mapa: parar na parede e subir em caixote |
+| `etapa-06-arma-e-tiro` | a pistola numa cena própria, o tiro como um raio, pingos de tinta e coice |
+| `etapa-07-som` | sons fabricados na hora com a Web Audio: tiro, impacto, passo e queda |
+| `etapa-08-inimigos-e-ondas` | bonecos de palito, caixas de acerto, ondas, vida, pontos e fim de jogo |
+| `etapa-09-placar` | uma API em Node que guarda o placar num arquivo JSON, e o jogo conversando com ela |
+| `main` | o jogo completo: mais armas, gancho, loja, dia e noite, cenário destrutível, bonecos que escalam |
+
+```bash
+git checkout etapa-05-colisao
+npx serve -l 3333 .
+```
+
+Da etapa 1 à 8 o jogo é só arquivo parado, então o comando acima basta. A etapa 0 abre com dois cliques no `index.html`. A etapa 9 e a `main` usam `node server.js`.
 
 ## Placar
 
@@ -73,6 +102,8 @@ Cada boneco nasce com um nome (`BOT Zé`, `BOT Borrão`...). Quando alguém é a
 Quatro riscos em cruz, como no CS. O vão no meio mostra o quanto o tiro vai espalhar: abre quando você anda, pula ou atira, e fecha quando você para ou mira com o botão direito. A conta é a mesma que o tiro usa.
 
 ## Bonecos que escalam
+
+![Bonecos escalando o prédio](docs/escalada.gif)
 
 Subir num prédio não salva mais ninguém. Quando você está em cima de um prédio, os bonecos que chegam na parede dele sobem com pés e mãos, pulam pra cima do teto e continuam atrás de você. Se você desce, eles param de escalar e voltam a desviar dos prédios como sempre. Quem cospe não escala: fica no chão, cuspindo pra cima.
 
