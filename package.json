@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Tiro em primeira pessoa 3D no navegador, desenhado a caneta numa folha de caderno",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --check js/game.js && node --check server.js && node --test"
   },
   "engines": {
     "node": ">=20"
