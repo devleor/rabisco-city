@@ -1,7 +1,9 @@
 /* As cores do jogo ficam aqui em cima, com nome, pra usar no resto do arquivo. */
 :root{--ink:#2a3fb0;--red:#d42a3a;--paper:#f3eedf}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--paper)}
+/* user-select:none impede o mouse de selecionar texto sem querer no meio do jogo. */
+html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);font-family:'Patrick Hand',cursive;color:var(--ink);user-select:none;-webkit-user-select:none}
+.hidden{display:none!important}
 
 /* O canvas ocupa a janela inteira. */
 canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
@@ -17,3 +19,25 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
 /* O grão do papel: um chuvisco gerado pelo próprio navegador, bem fraquinho. */
 #grain{position:fixed;inset:0;pointer-events:none;opacity:.10;mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* A mira: um ponto vermelho bem no meio da tela. */
+#hud{position:fixed;inset:0;pointer-events:none}
+#cross{position:absolute;left:50%;top:50%;width:0;height:0}
+#cross .dot{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+
+/* O menu: um cartão de papel, meio torto, no meio da tela. */
+#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(243,238,223,.35)}
+.card{--ink:#2a3fb0;color:#2a3fb0;position:relative;background:var(--paper);border:2px solid var(--ink);border-radius:6px 14px 8px 12px;padding:30px 44px 26px;max-width:560px;width:calc(100% - 40px);transform:rotate(-1deg);
+  box-shadow:6px 7px 0 rgba(42,63,176,.18)}
+.card:before{content:'';position:absolute;inset:6px -6px -6px 6px;border:1.3px solid rgba(42,63,176,.45);border-radius:10px 6px 14px 8px;z-index:-1}
+.card h1{font-family:'Gochi Hand',cursive;font-size:68px;line-height:1;letter-spacing:2px;font-weight:400}
+.card h1 span{color:var(--red)}
+.sub{font-size:20px;margin:4px 0 16px}
+#menuBody{font-size:19px;line-height:1.45;margin-bottom:18px}
+#menuBody b{font-family:'Gochi Hand',cursive;font-weight:400;font-size:24px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:2px 16px;font-size:17px;margin:6px 0 4px}
+.keys span:nth-child(odd){font-family:'Gochi Hand',cursive;color:var(--red)}
+#play{font-family:'Gochi Hand',cursive;font-size:34px;color:var(--paper);background:var(--ink);border:none;padding:8px 34px 6px;border-radius:8px 4px 10px 5px;cursor:pointer;transform:rotate(1deg);box-shadow:3px 4px 0 var(--red)}
+#play:hover{transform:rotate(-1deg) scale(1.04)}
+#play:active{box-shadow:1px 1px 0 var(--red);transform:translate(2px,3px)}
+.note{font-size:14px;opacity:.7;margin-top:14px}

@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rabisco City</title>
+<!-- Duas letras de mão, do Google Fonts. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -12,6 +15,26 @@
 <!-- Duas camadas por cima do jogo: as linhas da folha de caderno e o grão do papel. -->
 <div id="paper"></div>
 <div id="grain"></div>
+<!-- O HUD é tudo que fica por cima do jogo enquanto você joga. Por enquanto, só a mira. -->
+<div id="hud" class="hidden">
+  <div id="cross"><div class="dot"></div></div>
+</div>
+<!-- O menu. O botão JOGAR prende o mouse na tela e começa o jogo. -->
+<div id="menu">
+  <div class="card">
+    <h1>RABISCO <span>CITY</span></h1>
+    <div class="sub">uma cidade desenhada à caneta na folha do caderno</div>
+    <div id="menuBody">
+      <div class="keys">
+        <span>WASD</span><span>andar · Shift corre · Espaço pula</span>
+        <span>mouse</span><span>olhar em volta</span>
+        <span>Esc</span><span>solta o mouse e pausa</span>
+      </div>
+    </div>
+    <button id="play">JOGAR</button>
+    <div class="note">Precisa de teclado e mouse.</div>
+  </div>
+</div>
 
 <!-- O Three.js vem pronto da internet: uma linha, e a biblioteca inteira fica disponível como THREE. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

@@ -1,5 +1,6 @@
-// RABISCO CITY, etapa 3: a cidade.
-// Com uma peça só, a caixa da etapa 2, dá pra montar ruas, prédios, um parque, andaimes e uma cúpula.
+// RABISCO CITY, etapa 4: andar.
+// A câmera vira os olhos do jogador: o mouse gira a cabeça e o teclado move o corpo.
+// Ainda não tem colisão: dá pra atravessar os prédios. Isso é a próxima etapa.
 (() => {
 'use strict';
 
@@ -15,9 +16,12 @@ const RED = 0xd42a3a, GREEN = 0x2e9a4a, ORANGE = 0xe08a1e;
 let seed = 20261113;
 const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 const rand = (a, b) => a + Math.random() * (b - a);
+// Prende um número entre um mínimo e um máximo.
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const $ = id => document.getElementById(id); // atalho pra pegar um elemento da página
 
 // ---------- renderer ----------
-const canvas = document.getElementById('c');
+const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 const scene = new THREE.Scene();
@@ -26,6 +30,9 @@ scene.background = new THREE.Color(PAPER);
 // Dá profundidade, e esconde o fim do mundo.
 scene.fog = new THREE.Fog(PAPER, 32, 130);
 const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 500);
+// A ordem dos giros: primeiro pros lados (Y), depois pra cima e pra baixo (X).
+// Na ordem padrão, olhar pra cima depois de virar entortaria o horizonte.
+camera.rotation.order = 'YXZ';
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
@@ -402,6 +409,107 @@ const DOME_R = 112, DOME_Y = -26;
   lineSegs(rib, lm(INK, .85, false));
 })();
 
+// ---------- estado ----------
+// O jogador (P, de player). `pos` é onde estão os pés dele. `yaw` é pra que lado ele está virado
+// e `pitch` o quanto olha pra cima ou pra baixo, os dois em radianos.
+const P = { pos: new V3(0, 0, 5), vel: new V3(), vy: 0, onGround: true, yaw: 0, pitch: 0 };
+// 'menu' antes de começar, 'play' jogando, 'paused' com o mouse solto.
+let state = 'menu';
+// Se o navegador não deixar prender o mouse, o jogo funciona mesmo assim, com o mouse solto.
+let noLock = false;
+// As teclas apertadas agora. keys.KeyW é true enquanto o W estiver apertado.
+const keys = {};
+
+// ---------- input ----------
+// O teclado avisa duas vezes: quando a tecla desce e quando sobe. A gente só anota.
+// e.code é o nome da tecla pelo lugar dela no teclado (KeyW, Space...), igual em qualquer idioma.
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (state === 'play' && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); // não rola a página
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+// Se a janela perde o foco com uma tecla apertada, o "soltou" nunca chega. Então solta tudo.
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// O mouse. Com ele preso, o cursor some e o navegador passa só o quanto ele andou (movementX e movementY).
+addEventListener('mousemove', e => {
+  if (state !== 'play') return;
+  if (!noLock && document.pointerLockElement !== canvas) return;
+  const sens = .0022; // a sensibilidade: radianos por pixel
+  const mx = clamp(e.movementX || 0, -200, 200), my = clamp(e.movementY || 0, -200, 200);
+  P.yaw -= mx * sens;
+  P.pitch -= my * sens;
+  P.pitch = clamp(P.pitch, -1.5, 1.5); // quase 90 graus: não dá pra virar a cabeça de ponta-cabeça
+});
+function lockMouse() {
+  try {
+    const p = canvas.requestPointerLock();
+    if (p && p.catch) p.catch(() => { noLock = true; });
+  } catch (err) { noLock = true; }
+}
+// O Esc solta o mouse. O navegador avisa aqui, e o jogo pausa.
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement !== canvas && state === 'play' && !noLock) pause();
+});
+document.addEventListener('pointerlockerror', () => { noLock = true; });
+// Clicar no jogo com o mouse solto prende ele de novo.
+canvas.addEventListener('mousedown', () => {
+  if (state === 'play' && !noLock && document.pointerLockElement !== canvas) lockMouse();
+});
+
+// ---------- telas ----------
+function pause() {
+  state = 'paused';
+  $('menu').classList.remove('hidden');
+  $('play').textContent = 'CONTINUAR';
+}
+// O navegador só deixa prender o mouse em resposta a um clique. Por isso o jogo começa num botão.
+$('play').addEventListener('click', () => {
+  state = 'play';
+  $('menu').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  lockMouse();
+});
+
+// ---------- update ----------
+// Um passo do jogo. Roda a cada foto, enquanto o estado for 'play'.
+const FWD = new V3(), RIGHT = new V3();
+function update(dt) {
+  // Pra onde é "frente" e "direita" depende de pra onde o jogador está virado.
+  // O seno e o cosseno do yaw dão essas duas direções, deitadas no chão.
+  FWD.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+  RIGHT.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
+  // f vale 1 andando pra frente, -1 pra trás, 0 parado. s é o mesmo pros lados.
+  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  const sp = keys.ShiftLeft || keys.ShiftRight ? 8 : 6; // metros por segundo: correndo e andando
+  // A velocidade que ele QUER ter. O normalize deixa a diagonal do mesmo tamanho que a reta:
+  // sem ele, andar pra frente e pro lado ao mesmo tempo seria mais rápido.
+  const want = FWD.clone().multiplyScalar(f).addScaledVector(RIGHT, s);
+  if (want.lengthSq() > 0) want.normalize().multiplyScalar(sp);
+  // A velocidade de verdade vai chegando na desejada aos poucos. No chão, rápido (14).
+  // No ar, devagar (3): no meio do pulo quase não dá pra mudar de direção.
+  const acc = P.onGround ? 14 : 3;
+  P.vel.x += (want.x - P.vel.x) * Math.min(1, acc * dt);
+  P.vel.z += (want.z - P.vel.z) * Math.min(1, acc * dt);
+  // posição = posição + velocidade × tempo
+  P.pos.x += P.vel.x * dt;
+  P.pos.z += P.vel.z * dt;
+  // não sai da cidade
+  P.pos.x = clamp(P.pos.x, -57.5, 57.5);
+  P.pos.z = clamp(P.pos.z, -57.5, 57.5);
+
+  // O pulo: um empurrão pra cima. Daí a gravidade puxa a velocidade pra baixo o tempo todo.
+  if (keys.Space && P.onGround) { P.vy = 7.6; P.onGround = false; }
+  P.vy -= 22 * dt;
+  P.pos.y += P.vy * dt;
+  if (P.pos.y <= 0) { P.pos.y = 0; P.vy = 0; P.onGround = true; } // chegou no chão
+
+  // A câmera fica na altura dos olhos, 1,62 acima dos pés.
+  camera.position.set(P.pos.x, P.pos.y + 1.62, P.pos.z);
+  camera.rotation.set(P.pitch, P.yaw, 0);
+}
+
 // ---------- loop ----------
 let last = performance.now(), boilT = 0, boilS = false, menuA = 0;
 function loop(now) {
@@ -418,10 +526,13 @@ function loop(now) {
     boilB.forEach(m => m.visible = boilS);
   }
 
-  // A câmera dá a volta na praça devagar, olhando pro lápis. Na próxima etapa ela vira os olhos do jogador.
-  menuA += dt * .06;
-  camera.position.set(Math.sin(menuA) * 15, 6.5, Math.cos(menuA) * 15);
-  camera.lookAt(0, 4, 0);
+  if (state === 'play') update(dt);
+  else if (state === 'menu') {
+    // No menu a câmera dá a volta na praça devagar, olhando pro lápis.
+    menuA += dt * .06;
+    camera.position.set(Math.sin(menuA) * 15, 6.5, Math.cos(menuA) * 15);
+    camera.lookAt(0, 4, 0);
+  }
 
   renderer.render(scene, camera);
 }
