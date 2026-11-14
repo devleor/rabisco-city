@@ -6,7 +6,7 @@ const { get, put, BlobPreconditionFailedError } = require('@vercel/blob');
 const { conferePedido, estadoVazio, estadoDoTexto, melhores, entra, SO_GET_E_POST, FORA_DO_AR } = require('../lib/placar');
 
 const CAMINHO = 'placar.json';
-const TENTATIVAS = 6;
+const TENTATIVAS = 8;
 
 // Lê o placar.json do Blob. Devolve o estado e a "etiqueta" (ETag) daquela versão do arquivo.
 // useCache: false pede o arquivo de verdade, e não uma cópia que pode estar até um minuto atrasada.
@@ -15,7 +15,9 @@ async function lePlacar() {
   if (!achado) return { estado: estadoVazio(), etiqueta: null }; // o arquivo ainda não existe
   if (achado.statusCode !== 200) throw new Error('o Blob respondeu ' + achado.statusCode);
   const texto = await new Response(achado.stream).text();
-  return { estado: estadoDoTexto(texto), etiqueta: achado.blob.etag };
+  // Às vezes a etiqueta chega como W/"abc" (o W é de "weak": o arquivo veio comprimido no caminho).
+  // A gravação condicional só aceita a etiqueta pura, "abc", então o prefixo sai.
+  return { estado: estadoDoTexto(texto), etiqueta: achado.blob.etag.replace(/^W\//, '') };
 }
 
 // Grava o estado. Com a etiqueta, o Blob só aceita se o arquivo ainda for aquele que a gente leu.
@@ -57,7 +59,9 @@ module.exports = async function placar(req, res) {
         } catch (erro) {
           // Só vale tentar de novo quando o motivo foi "o arquivo mudou" (ou, na primeira gravação,
           // "o arquivo já existe"). Qualquer outro erro (sem permissão, Blob fora do ar) sobe na hora.
-          const mudou = erro instanceof BlobPreconditionFailedError || etiqueta === null;
+          // O Blob avisa esse conflito de dois jeitos: com um erro próprio, ou com um erro comum cuja
+          // mensagem fala em "conditional request ... conflicting operation" (duas gravações na mesma hora).
+          const mudou = erro instanceof BlobPreconditionFailedError || /condition|conflict/i.test(String(erro && erro.message)) || etiqueta === null;
           if (!mudou || tentativa === TENTATIVAS - 1) throw erro;
           await new Promise(pronto => setTimeout(pronto, 40 + Math.random() * 120 * (tentativa + 1))); // espera um tiquinho
         }

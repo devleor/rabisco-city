@@ -30,6 +30,7 @@ O jogo roda no navegador, então nada escrito no `game.js` é segredo. Por isso 
 O que isso barra e o que não barra:
 
 - Barra o `POST` feito na mão sem bilhete, o bilhete inventado ou alterado, o mesmo bilhete enviado duas vezes e o número absurdo.
+- Uma partida que fica aberta (ou pausada) por mais de duas horas perde o bilhete, e a pontuação dela não entra.
 - Não barra quem pede um bilhete, espera um tempo e envia uma pontuação que caberia nesse tempo, nem quem altera o jogo no próprio navegador. A conta do tempo é folgada (uns 150 pontos por segundo). Pra barrar isso o servidor teria que simular a partida, e o `GET /api/partida` teria que ter limite de pedidos.
 
 As regras ficam em `lib/placar.js` e valem nos dois lugares:
