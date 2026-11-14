@@ -1894,7 +1894,7 @@ async function carregaPlacar() {
 // POST: toma, guarda esta pontuação. O corpo do pedido é um JSON, e o cabeçalho avisa o servidor disso.
 async function enviaPontuacao() {
   const nome = $('nome').value.trim() || 'anônimo';
-  localStorage.setItem('rabisco-nome', nome); // o navegador lembra o nome pra próxima visita
+  try { localStorage.setItem('rabisco-nome', nome); } catch (erro) { /* navegador com o armazenamento bloqueado */ } // lembra o nome pra próxima visita
   try {
     const resposta = await fetch(API, {
       method: 'POST',
@@ -1908,7 +1908,7 @@ async function enviaPontuacao() {
     carregaPlacar(); // não deu pra enviar: mostra o placar como estiver
   }
 }
-$('nome').value = localStorage.getItem('rabisco-nome') || '';
+try { $('nome').value = localStorage.getItem('rabisco-nome') || ''; } catch (erro) { /* armazenamento bloqueado: começa sem nome */ }
 carregaPlacar();
 
 // ---------- telas ----------

@@ -11,7 +11,7 @@ Feito com **Three.js (r128)** + JavaScript puro. Sem build. O jogo e o servidor 
 node server.js
 ```
 
-Abra `http://localhost:3333`. Precisa de teclado e mouse. O `server.js` não tem dependências: ele entrega os arquivos do jogo e responde a API do placar, guardando a lista em `dados/placar.json`.
+Abra `http://localhost:3333`. Precisa de teclado e mouse. O `server.js` não tem dependências: ele entrega os arquivos do jogo e responde a API do placar, guardando os dados em `dados/placar.json`.
 
 Qualquer servidor estático (`npx serve .`, `python3 -m http.server`) também abre o jogo, só que sem placar.
 
@@ -25,12 +25,19 @@ No ar em **https://rabisco-city.vercel.app**.
 | `GET /api/partida` | começou uma partida: devolve um bilhete assinado |
 | `POST /api/placar` | guarda `{ "nome", "pontos", "onda", "bilhete" }` |
 
-O jogo roda no navegador, então nada escrito no `game.js` é segredo. Por isso não existe uma chave de API dentro do jogo. O segredo fica só no servidor: ele assina um bilhete quando a partida começa, e o `POST` só é aceito com um bilhete verdadeiro (`401` sem ele), que ainda não foi usado (`409`) e com uma pontuação que cabe no tempo que a partida durou (`422`). Isso barra o `POST` feito na mão. Não barra quem altera o jogo no próprio navegador e joga devagar: pra isso o servidor teria que simular a partida.
+O jogo roda no navegador, então nada escrito no `game.js` é segredo. Por isso não existe uma chave de API dentro do jogo. O segredo fica só no servidor: quando a partida começa ele sorteia um UUID pra ela e devolve um bilhete (o UUID, a hora e uma assinatura HMAC). O `POST` só é aceito com um bilhete verdadeiro e com menos de duas horas (`401` sem ele), que ainda não foi usado (`409`) e com uma pontuação que cabe no tempo que a partida durou (`422`).
+
+O que isso barra e o que não barra:
+
+- Barra o `POST` feito na mão sem bilhete, o bilhete inventado ou alterado, o mesmo bilhete enviado duas vezes e o número absurdo.
+- Não barra quem pede um bilhete, espera um tempo e envia uma pontuação que caberia nesse tempo, nem quem altera o jogo no próprio navegador. A conta do tempo é folgada (uns 150 pontos por segundo). Pra barrar isso o servidor teria que simular a partida, e o `GET /api/partida` teria que ter limite de pedidos.
 
 As regras ficam em `lib/placar.js` e valem nos dois lugares:
 
-- `server.js`: no seu computador, a lista fica num arquivo do disco.
-- `api/placar.js` e `api/partida.js`: na Vercel, onde o código não tem disco próprio, a lista fica no Vercel Blob.
+- `server.js`: no seu computador, os dados ficam num arquivo do disco. Ele só atende o próprio computador (`127.0.0.1`); pra liberar na rede, `HOST=0.0.0.0 node server.js`.
+- `api/placar.js` e `api/partida.js`: na Vercel, onde o código não tem disco próprio, os dados ficam no Vercel Blob.
+
+O que fica guardado é um JSON com as 100 melhores linhas e os bilhetes já usados: `{ "linhas": [...], "usados": {...} }`.
 
 ## Deploy na Vercel
 
