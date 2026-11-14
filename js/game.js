@@ -1,6 +1,6 @@
-// RABISCO CITY, etapa 8: os inimigos e as ondas.
-// Bonecos de palito nascem na beira da cidade e vêm atrás de você. Agora dá pra ganhar ponto, apanhar e perder:
-// com isso, a cidade vira um jogo.
+// RABISCO CITY, etapa 9: o placar.
+// Quando você é apagado, o jogo manda a sua pontuação pra um servidor (um POST) e pede de volta
+// os dez melhores (um GET). O servidor é o server.js, na raiz do projeto: rode com  node server.js
 (() => {
 'use strict';
 
@@ -858,6 +858,7 @@ function updateHUD() {
 // O teclado avisa duas vezes: quando a tecla desce e quando sobe. A gente só anota.
 // e.code é o nome da tecla pelo lugar dela no teclado (KeyW, Space...), igual em qualquer idioma.
 addEventListener('keydown', e => {
+  if (e.target === $('nome')) return; // digitando o nome: as teclas não são do jogo
   keys[e.code] = true;
   if (state === 'play' && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); // não rola a página
 });
@@ -894,6 +895,65 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 0) mouseL = false; });
 
+// ---------- placar ----------
+// O fetch é o jeito do JavaScript fazer um pedido HTTP sem trocar de página.
+// Ele demora (o pedido viaja pela rede), então devolve uma promessa: o await espera a resposta chegar.
+const API = '/api/placar';
+
+// Desenha a lista no cartão do menu. `minha` é a posição da partida que acabou de ser enviada, se tiver.
+function mostraPlacar(melhores, minha) {
+  const caixa = $('placar');
+  caixa.replaceChildren();
+  const titulo = document.createElement('div');
+  titulo.className = 't';
+  titulo.textContent = melhores.length ? 'OS MELHORES' : 'ninguém no placar ainda';
+  caixa.appendChild(titulo);
+  const lista = document.createElement('ol');
+  melhores.forEach((linha, i) => {
+    const li = document.createElement('li');
+    if (i + 1 === minha) li.className = 'eu';
+    // textContent põe o nome como texto puro. Com innerHTML, um nome como <img onerror=...>
+    // viraria código rodando na página de todo mundo que abrisse o placar.
+    for (const texto of [i + 1 + '.', linha.nome, linha.pontos + ' pts', 'onda ' + linha.onda]) {
+      const span = document.createElement('span');
+      span.textContent = texto;
+      li.appendChild(span);
+    }
+    lista.appendChild(li);
+  });
+  caixa.appendChild(lista);
+}
+// GET: me dá o placar.
+async function carregaPlacar() {
+  try {
+    const resposta = await fetch(API);
+    if (!resposta.ok) throw new Error(resposta.status); // 404, 500...
+    mostraPlacar(await resposta.json());
+  } catch (erro) {
+    // Abriu o jogo sem o server.js (por exemplo, com dois cliques no index.html): não tem API. O jogo segue sem placar.
+    $('placar').textContent = 'placar desligado: rode o jogo com  node server.js';
+  }
+}
+// POST: toma, guarda esta pontuação. O corpo do pedido é um JSON, e o cabeçalho avisa o servidor disso.
+async function enviaPontuacao() {
+  const nome = $('nome').value.trim() || 'anônimo';
+  localStorage.setItem('rabisco-nome', nome); // o navegador lembra o nome pra próxima visita
+  try {
+    const resposta = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, pontos: score, onda: wave }),
+    });
+    if (!resposta.ok) throw new Error(resposta.status);
+    const dados = await resposta.json();
+    mostraPlacar(dados.melhores, dados.posicao);
+  } catch (erro) {
+    carregaPlacar(); // não deu pra enviar: mostra o placar como estiver
+  }
+}
+$('nome').value = localStorage.getItem('rabisco-nome') || '';
+carregaPlacar();
+
 // ---------- telas ----------
 // Troca o que está escrito no cartão do menu e mostra ele.
 const menuBodyStart = $('menuBody').innerHTML;
@@ -913,6 +973,7 @@ function gameOver() {
   mouseL = false;
   try { document.exitPointerLock(); } catch (e) { }
   $('vig').style.opacity = .9;
+  enviaPontuacao();
   setTimeout(() => showMenu('VOCÊ FOI <span>APAGADO</span>', `Chegou até a <b>onda ${wave}</b> com <b>${score}</b> pontos e <b>${kills}</b> rabiscos apagados.<br>Vira a página e tenta de novo.`, 'DE NOVO'), 700);
 }
 // Uma partida nova: tira da cena tudo que sobrou da anterior e zera os números.

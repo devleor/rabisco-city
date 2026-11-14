@@ -66,3 +66,12 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
 #play:hover{transform:rotate(-1deg) scale(1.04)}
 #play:active{box-shadow:1px 1px 0 var(--red);transform:translate(2px,3px)}
 .note{font-size:14px;opacity:.7;margin-top:14px}
+
+/* O placar e o campo do nome, dentro do cartão do menu. */
+#nomeBox{font-size:18px;margin:0 0 14px;display:flex;align-items:center;gap:10px}
+#nome{font:inherit;color:var(--ink);background:transparent;border:none;border-bottom:2px solid var(--ink);width:170px;padding:0 4px;outline:none}
+#placar{font-size:17px;margin:0 0 16px}
+#placar .t{font-family:'Gochi Hand',cursive;font-size:22px;color:var(--red)}
+#placar ol{list-style:none;display:grid;grid-template-columns:auto 1fr auto auto;gap:0 14px}
+#placar li{display:contents}
+#placar li.eu span{color:var(--red)}

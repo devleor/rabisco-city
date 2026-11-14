@@ -1,3 +1,5 @@
 node_modules/
 .vercel/
 .DS_Store
+# o placar de cada computador fica só nele
+dados/
