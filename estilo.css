@@ -1,0 +1,50 @@
+/* As duas letras de mão, as mesmas do Rabisco City. */
+@import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap');
+
+/* A página: cor de papel, linhas de caderno e tinta azul. */
+body {
+  background: #f3eedf repeating-linear-gradient(transparent 0 31px, rgba(42, 63, 176, .16) 31px 32px);
+  color: #2a3fb0;
+  font-family: 'Patrick Hand', cursive;
+  text-align: center;
+}
+
+/* O título: grande e meio torto. */
+h1 {
+  font: 64px 'Gochi Hand', cursive;
+  margin: 40px 0 0;
+  transform: rotate(-2deg);
+}
+
+#aviso { font-size: 28px; }
+
+/* Cada linha do tabuleiro põe os três botões lado a lado. */
+.linha { display: flex; justify-content: center; }
+
+/* O botão deixa de parecer botão: sobram só os riscos do jogo da velha. */
+#tabuleiro button {
+  width: 110px;
+  height: 110px;
+  font: 76px 'Gochi Hand', cursive;
+  color: #2a3fb0;
+  background: none;
+  border: none;
+  border-right: 4px solid #2a3fb0;
+  border-bottom: 4px solid #2a3fb0;
+  cursor: pointer;
+}
+#tabuleiro button:last-child { border-right: none; }
+#tabuleiro .linha:last-child button { border-bottom: none; }
+#tabuleiro button.O { color: #d42a3a; } /* a bolinha é vermelha */
+
+#de-novo {
+  margin-top: 30px;
+  padding: 6px 26px;
+  font: 26px 'Gochi Hand', cursive;
+  color: #f3eedf;
+  background: #2a3fb0;
+  border: none;
+  border-radius: 8px 4px 10px 5px;
+  box-shadow: 3px 4px 0 #d42a3a;
+  cursor: pointer;
+}
