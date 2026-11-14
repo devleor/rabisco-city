@@ -13,7 +13,10 @@
 <div id="paper"></div>
 <div id="grain"></div>
 <div id="hud" class="hidden">
-  <div id="score" class="hand">PONTOS <b id="scoreV">0</b></div>
+  <div id="score" class="hand">PONTOS <b id="scoreV">0</b><div id="moneyV">$ 800</div><div id="buyHint"></div></div>
+  <div id="armorV"></div>
+  <div id="ghint"></div>
+  <div id="buy" class="hidden"><div class="bt hand">LOJA <span id="buyMoney"></span></div><div id="buyList"></div><div class="bf">aperte o número pra comprar · B fecha · a arma que você tem cai no chão</div></div>
   <div id="waveBox"><div id="waveV" class="hand">ONDA 1</div><div id="leftV"></div><div id="nextV" class="red"></div></div>
   <div id="hpBox"><span>HP</span><div id="hpBar"><div id="hpFill" style="width:100%"></div></div><span id="hpV">100</span></div>
   <div id="ammoBox"><span id="magV" class="hand">30</span><span id="resV">/180</span><span id="relV" class="red"></span></div>
@@ -41,7 +44,8 @@
         <span>WASD</span><span>andar · Shift corre · Espaço pula</span>
         <span>mouse</span><span>clique atira · botão direito mira (red dot na UZI, luneta na SNIPER)</span>
         <span>E</span><span>gancho: segura pra voar até onde mirou · Espaço = turbo de gás</span>
-        <span>1 a 7</span><span>trocar arma (ou rodinha / Q)</span>
+        <span>1 2 3</span><span>arma principal · pistola · régua (rodinha / Q)</span>
+        <span>B</span><span>loja entre as ondas · G larga a arma · F pega do chão</span>
         <span>R</span><span>recarregar · Esc pausa</span>
       </div>
     </div>

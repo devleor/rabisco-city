@@ -33,13 +33,27 @@ Abra `http://localhost:8000` (ou a porta que aparecer). Precisa de teclado e mou
 | Mouse | mirar · clique atira |
 | Botão direito | mira (red dot na UZI, massa na AK e pistola, luneta na sniper) |
 | E (segurar) | gancho estilo equipamento de manobra |
-| 1 a 7 / rodinha / Q | trocar arma |
+| 1 / 2 / 3 | arma principal · pistola · régua (rodinha / Q também) |
+| B | loja (entre as ondas e nos primeiros 20s de cada onda) |
+| G | larga a arma no chão |
+| F | pega/troca pela arma do chão |
 | R | recarregar |
 | Esc | pausa |
 
 ## Armas
 
 UZI · AK-47 · Pistola · Escopeta · Sniper (atravessa inimigos) · Bazuca (explosão em área, destrói o cenário, dá pra fazer rocket jump) · Régua (corpo a corpo, mais forte voando no gancho).
+
+## Loja (estilo CS)
+
+Você começa com pistola, régua e $800. Cada boneco apagado dá dinheiro (grandão dá mais, tiro na cabeça dá bônus) e cada onda limpa dá $1000 + $250 por onda.
+Com **B** abre a loja: UZI, escopeta, AK-47, sniper, bazuca, munição, kit de vida, colete e pistola.
+Só cabe uma arma principal: ao comprar outra, a atual cai no chão (dá pra pegar de volta com **F**).
+
+## Dia e noite
+
+A hora avança com as ondas: dia → pôr do sol → noite → noite → amanhecer.
+À noite a folha vira azul-marinho com traço claro (tipo planta baixa), aparecem lua e estrelas, os postes iluminam mais e uma lanterna marca onde você mira.
 
 ## Cenário destrutível
 

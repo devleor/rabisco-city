@@ -46,6 +46,22 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:cros
 #pops{position:absolute;left:50%;top:50%}
 .pop{position:absolute;white-space:nowrap;font-family:'Gochi Hand',cursive;font-size:22px;color:var(--red);animation:pop .9s ease-out forwards;transform:translate(-50%,0)}
 @keyframes pop{0%{opacity:0;margin-top:-10px}15%{opacity:1}100%{opacity:0;margin-top:-70px}}
+#moneyV{font-size:24px;color:var(--green);margin-top:2px}
+#buyHint{font-family:'Patrick Hand',cursive;font-size:15px;color:var(--red)}
+#armorV{position:absolute;left:130px;bottom:112px;font-size:15px}
+#ghint{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-family:'Gochi Hand',cursive;font-size:22px;color:var(--orange);opacity:0;transition:opacity .15s;white-space:nowrap}
+#buy{position:absolute;left:130px;top:120px;width:430px;background:rgba(243,238,223,.96);border:2px solid #2a3fb0;border-radius:6px 12px 8px 10px;padding:14px 18px;transform:rotate(-.6deg);box-shadow:5px 6px 0 rgba(42,63,176,.2);color:#2a3fb0}
+#buy .bt{font-size:32px;line-height:1;margin-bottom:6px}
+#buy .bt span{color:#2e9a4a;float:right}
+#buy .bi{display:grid;grid-template-columns:24px 1fr auto;column-gap:8px;padding:4px 0;border-bottom:1px dashed rgba(42,63,176,.3)}
+#buy .bi b{font-family:'Gochi Hand',cursive;font-weight:400;font-size:20px}
+#buy .bi em{font-style:normal;color:#2e9a4a;font-size:18px}
+#buy .bi small{grid-column:2/4;font-size:13px;opacity:.75;margin-top:-3px}
+#buy .bi.no{opacity:.4}#buy .bi.no em{color:#d42a3a}
+#buy .bi.have b{text-decoration:underline}
+#buy .k{display:inline-block;border:1.3px solid #2a3fb0;border-radius:3px;font-size:13px;text-align:center;height:18px;line-height:16px;margin-top:3px}
+#buy .bf{font-size:13px;margin-top:8px;opacity:.7}
+#wlist i{opacity:.6}
 #hook{position:absolute;left:50%;top:50%;margin:-15px 0 0 18px;font-family:'Gochi Hand',cursive;font-size:15px;color:var(--red);opacity:0;transition:opacity .1s;white-space:nowrap}
 #hook:before{content:'';display:inline-block;width:9px;height:9px;border:1.6px solid var(--red);border-radius:50%;margin-right:4px;vertical-align:-1px}
 #flashFx{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 60% 62%,rgba(255,236,140,.95),rgba(255,214,90,.45) 35%,rgba(255,214,90,0) 75%)}
@@ -61,7 +77,7 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:cros
 #scope .h{left:calc(50% - 34vmin);width:68vmin;top:50%;height:1.5px}
 #scope .v{top:calc(50% - 34vmin);height:68vmin;left:50%;width:1.5px}
 #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(243,238,223,.35)}
-.card{position:relative;background:var(--paper);border:2px solid var(--ink);border-radius:6px 14px 8px 12px;padding:30px 44px 26px;max-width:560px;width:calc(100% - 40px);transform:rotate(-1deg);
+.card{--ink:#2a3fb0;color:#2a3fb0;position:relative;background:var(--paper);border:2px solid var(--ink);border-radius:6px 14px 8px 12px;padding:30px 44px 26px;max-width:560px;width:calc(100% - 40px);transform:rotate(-1deg);
   box-shadow:6px 7px 0 rgba(42,63,176,.18)}
 .card:before{content:'';position:absolute;inset:6px -6px -6px 6px;border:1.3px solid rgba(42,63,176,.45);border-radius:10px 6px 14px 8px;z-index:-1}
 .card h1{font-family:'Gochi Hand',cursive;font-size:68px;line-height:1;letter-spacing:2px;font-weight:400}
