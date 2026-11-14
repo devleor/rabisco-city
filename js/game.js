@@ -1,11 +1,20 @@
-// RABISCO CITY, etapa 2: o traço de caneta.
-// Nenhuma imagem é carregada: as texturas são desenhadas com código, na hora, num canvas escondido.
+// RABISCO CITY, etapa 3: a cidade.
+// Com uma peça só, a caixa da etapa 2, dá pra montar ruas, prédios, um parque, andaimes e uma cúpula.
 (() => {
 'use strict';
+
+const V3 = THREE.Vector3; // um apelido curto: um ponto (ou uma direção) com x, y e z
 
 // As cores: o papel e a tinta. A tinta aparece de três jeitos, porque cada lugar pede um formato.
 const PAPER = 0xf3eedf, PAPER_CSS = '#f3eedf', INK = 0x2a3fb0, INK_RGB = '42,63,176';
 const RED = 0xd42a3a, GREEN = 0x2e9a4a, ORANGE = 0xe08a1e;
+
+// Dois jeitos de sortear. O Math.random dá um número diferente a cada vez que a página abre.
+// O rng parte de uma semente: com a mesma semente, a sequência é sempre a mesma.
+// A cidade usa o rng, e por isso é a mesma cidade pra todo mundo. Os detalhes (grama, nuvens) usam o rand.
+let seed = 20261113;
+const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------- renderer ----------
 const canvas = document.getElementById('c');
@@ -13,6 +22,9 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(PAPER);
+// A neblina: de 32 metros em diante as coisas vão sumindo na cor do papel, e a 130 já não aparecem.
+// Dá profundidade, e esconde o fim do mundo.
+scene.fog = new THREE.Fog(PAPER, 32, 130);
 const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 500);
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -57,8 +69,26 @@ function diag(g, s, step, alpha, dir = 1, w = 1.3) {
   }
 }
 
-// As texturas do jogo, da mais clara pra mais escura, e uma de tijolo.
+// Desenha quatro janelas por cima da hachura: o vidro limpo, a moldura, a cruz, o peitoril e um reflexo.
+function windows(g, s) {
+  for (let ix = 0; ix < 2; ix++) for (let iy = 0; iy < 2; iy++) {
+    const x = ix * 128 + 30 + Math.random() * 4, y = iy * 128 + 24 + Math.random() * 4, w = 66, h = 82;
+    g.fillStyle = PAPER_CSS; g.fillRect(x, y, w, h);
+    g.strokeStyle = `rgba(${INK_RGB},.95)`; g.lineWidth = 3; g.strokeRect(x, y, w, h);
+    g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); g.moveTo(x, y + h * 0.45); g.lineTo(x + w, y + h * 0.45); g.stroke();
+    g.lineWidth = 2.4;
+    g.beginPath(); g.moveTo(x - 6, y + h + 5); g.lineTo(x + w + 6, y + h + 5); g.stroke();
+    g.strokeStyle = `rgba(${INK_RGB},.25)`; g.lineWidth = 1;
+    for (let k = 6; k < w; k += 9) { g.beginPath(); g.moveTo(x + k, y + 2); g.lineTo(x + k - 5, y + 14); g.stroke(); }
+  }
+}
+
+// As texturas do jogo, da mais clara pra mais escura, uma de tijolo e três com janelas.
 const T = {
+  winL: tex((g, s) => { diag(g, s, 16, 0.32); windows(g, s); }),
+  winM: tex((g, s) => { diag(g, s, 10, 0.42); windows(g, s); }),
+  winD: tex((g, s) => { diag(g, s, 8, 0.48); diag(g, s, 16, 0.3, -1); windows(g, s); }),
   // papel quase limpo: só uns pontinhos
   plain: tex((g, s) => {
     g.fillStyle = `rgba(${INK_RGB},.18)`;
@@ -83,11 +113,16 @@ const T = {
 // O material usa a textura como pele. O polygonOffset empurra a face um fio pra trás,
 // pra a linha do contorno, que fica exatamente em cima dela, não ficar piscando.
 const mkMat = t => new THREE.MeshBasicMaterial({ map: t, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+// Um material simples de cada textura, sem o tom de luz. O lápis gigante da praça usa.
+const MAT = {};
+for (const k in T) MAT[k] = mkMat(T[k]);
 
 // Uma caixa tem seis faces, nesta ordem: direita, esquerda, cima, baixo, frente, trás.
 // Um estilo diz qual textura vai em cada uma. Um lado mais riscado que o outro já parece sombra.
 const STYLES = {
   hatch: ['dense', 'light', 'plain', 'plain', 'med', 'light'],
+  win: ['winD', 'winL', 'plain', 'plain', 'winM', 'winL'],
+  plain: ['light', 'plain', 'plain', 'plain', 'plain', 'plain'],
   brick: ['brick', 'brick', 'plain', 'plain', 'brick', 'brick'],
   crate: ['med', 'light', 'plain', 'plain', 'light', 'med'],
 };
@@ -128,9 +163,12 @@ function worldUV(geo, scale = 4) {
 // algumas vezes por segundo. É isso que faz o desenho parecer vivo, feito à mão.
 const lineMats = {};
 const boilA = [], boilB = []; // os materiais dos dois rascunhos: o loop liga um e desliga o outro
-function lm(color) {
-  if (!lineMats[color]) lineMats[color] = new THREE.LineBasicMaterial({ color });
-  return lineMats[color];
+// O material de uma linha. `op` é a opacidade (1 = tinta cheia), e `fog` diz se a neblina apaga ela:
+// o que fica no céu, lá longe, desliga a neblina pra continuar aparecendo.
+function lm(color, op = 1, fog = true) {
+  const k = color + '_' + op + '_' + fog;
+  if (!lineMats[k]) lineMats[k] = new THREE.LineBasicMaterial({ color, transparent: op < 1, opacity: op, fog });
+  return lineMats[k];
 }
 function boilMat(color, which) {
   const k = 'boil' + which + '_' + color;
@@ -193,13 +231,176 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-// Uma mesinha de amostras: um prédio, um muro de tijolo e caixotes de três cores.
-addBox(0, 0, 4, 4, 6, 'hatch');
-addBox(5, 1, 5, 0.6, 1.1, 'brick');
-addBox(-4, 2, 1.6, 1.6, 1.6, 'crate', 0, GREEN);
-addBox(-4, 2, 1.1, 1.1, 1.1, 'crate', 1.6, GREEN); // y0 = 1,6: em cima do outro
-addBox(-6, -1, 1.2, 1.2, 1.2, 'crate', 0, ORANGE);
-addBox(3, 4, 1.4, 1.4, 1.4, 'crate', 0, RED);
+// Desenha um monte de linhas soltas de uma vez. `pts` é uma lista corrida de números:
+// x, y, z de onde cada linha começa, depois x, y, z de onde ela termina.
+function lineSegs(pts, mat) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const l = new THREE.LineSegments(g, mat);
+  scene.add(l);
+  return l;
+}
+
+// O mapa é uma grade: a cidade vai de -60 a 60 nos dois eixos, com um quarteirão a cada 20 metros.
+// As ruas passam no meio, entre um quarteirão e outro.
+
+// As faixas tracejadas das ruas e uns tufinhos de grama, tudo riscado no chão (y = 0,02: um fio acima dele).
+(() => {
+  const pts = [];
+  for (const s of [-52, -30, -10, 10, 30, 52]) for (let t = -56; t < 56; t += 3.2) {
+    const a = t + Math.random() * 0.2, b = t + 1.4 + Math.random() * 0.3;
+    pts.push(s, 0.02, a, s + (Math.random() - .5) * .05, 0.02, b); // rua que vai pra frente
+    pts.push(a, 0.02, s, b, 0.02, s + (Math.random() - .5) * .05); // rua que cruza
+  }
+  lineSegs(pts, lm(INK, 0.6));
+  const tp = [];
+  for (let i = 0; i < 260; i++) {
+    const x = rand(-57, 57), z = rand(-57, 57), s = rand(.12, .25);
+    // cada tufo é um W: quatro risquinhos
+    tp.push(x - s, .02, z, x - s * .4, .02, z - s * 1.4, x - s * .4, .02, z - s * 1.4, x, .02, z,
+      x, .02, z, x + s * .4, .02, z - s * 1.6, x + s * .4, .02, z - s * 1.6, x + s, .02, z);
+  }
+  lineSegs(tp, lm(INK, 0.35));
+})();
+
+// Os muros de tijolo que fecham a cidade pelos quatro lados.
+addBox(0, -59, 120, 2, 7, 'brick'); addBox(0, 59, 120, 2, 7, 'brick');
+addBox(-59, 0, 2, 116, 7, 'brick'); addBox(59, 0, 2, 116, 7, 'brick');
+
+// Um prédio: uma caixa alta, às vezes com um caixote no telhado e um toldo na frente.
+function building(x, z, w, d, h) {
+  const style = rng() < 0.62 ? 'win' : 'hatch'; // seis em cada dez têm janelas
+  addBox(x, z, w, d, h, style);
+  if (rng() < 0.5) addBox(x + (rng() - .5) * w * .4, z + (rng() - .5) * d * .4, rand(1.2, 2.5), rand(1.2, 2.5), rand(1, 2.2), 'crate', h);
+  if (rng() < 0.4) addBox(x, z + d / 2 + 0.7, w * 0.6, 1.4, 0.15, 'plain', 3.2);
+}
+// Um parque: caixotes coloridos espalhados (alguns empilhados) e uma mureta.
+function park(bx, bz) {
+  for (let i = 0; i < 6; i++) {
+    const s = rand(1, 1.8), col = [INK, GREEN, ORANGE][Math.floor(rng() * 3)];
+    const x = bx + rand(-5, 5), z = bz + rand(-5, 5);
+    addBox(x, z, s, s, s, 'crate', 0, col);
+    if (rng() < 0.35) addBox(x, z, s * .7, s * .7, s * .7, 'crate', s, col);
+  }
+  addBox(bx + rand(-3, 3), bz + rand(-3, 3), 5, 0.6, 1.1, 'brick');
+}
+// Um andaime: seis postes, três andares de laje, guarda-corpo e uma escada até o primeiro.
+function scaffold(bx, bz) {
+  const w = 10, d = 8, lh = 3.5; // lh é a altura de cada andar
+  for (const px of [-4.85, 0, 4.85]) for (const pz of [-3.85, 3.85]) addBox(bx + px, bz + pz, 0.3, 0.3, lh * 3 + 1.2, 'hatch');
+  for (let lv = 1; lv <= 3; lv++) {
+    addBox(bx, bz, w, d, 0.3, 'crate', lv * lh);
+    // o guarda-corpo é só desenho: o corrimão em volta e as barrinhas de um lado
+    const y = lv * lh + 1.2, pts = [];
+    const c = [[-5, -4], [5, -4], [5, 4], [-5, 4], [-5, -4]];
+    for (let i = 0; i < 4; i++) pts.push(bx + c[i][0], y, bz + c[i][1], bx + c[i + 1][0], y, bz + c[i + 1][1]);
+    for (let t = -5; t <= 5; t += 1.25) pts.push(bx + t, y, bz - 4, bx + t, lv * lh + .3, bz - 4);
+    lineSegs(pts, lm(INK, 0.8));
+  }
+  // a escada: sete caixas, cada uma meio metro mais alta que a anterior
+  for (let i = 0; i < 7; i++) addBox(bx - 3 + i * 0.8, bz + 5, 0.8, 1.6, (i + 1) * 0.5, 'crate');
+}
+
+// Os quarteirões. Alguns são especiais (andaime ou parque); os outros sorteiam um, dois ou três prédios.
+seed = 777;
+const SPECIAL = { '20,-20': 'scaffold', '-20,20': 'scaffold', '-40,0': 'park', '40,20': 'park', '0,40': 'park', '0,-40': 'park' };
+for (const bx of [-40, -20, 0, 20, 40]) for (const bz of [-40, -20, 0, 20, 40]) {
+  if (bx === 0 && bz === 0) continue; // o do meio é a praça
+  const sp = SPECIAL[bx + ',' + bz];
+  if (sp === 'scaffold') { scaffold(bx, bz); continue; }
+  if (sp === 'park') { park(bx, bz); continue; }
+  const n = 1 + Math.floor(rng() * 3);
+  if (n === 1) building(bx, bz, 8 + rng() * 4, 8 + rng() * 4, 6 + rng() * 14);
+  else if (n === 2) {
+    const d = 8 + rng() * 4;
+    building(bx - 3, bz, 5.4, d, 5 + rng() * 15);
+    building(bx + 3, bz, 5.4, d - rng() * 3, 5 + rng() * 15);
+  } else {
+    building(bx, bz - 3.4, 12, 5, 6 + rng() * 12);
+    building(bx - 3.2, bz + 3.4, 5.2, 5, 4 + rng() * 10);
+    building(bx + 3.2, bz + 3.4, 5.2, 5, 4 + rng() * 14);
+  }
+}
+
+// A praça central, com um lápis gigante em pé. Nem tudo é caixa: o lápis é feito de cilindros
+// de seis lados e cones. A receita é a mesma: geometria, material, contorno.
+addBox(0, 0, 2.6, 2.6, 1, 'brick');
+(() => {
+  const g1 = new THREE.CylinderGeometry(.62, .62, 0.6, 6); g1.translate(0, 1.3, 0); worldUV(g1, 2); // a borracha
+  const g2 = new THREE.CylinderGeometry(.6, .6, 4.6, 6); g2.translate(0, 3.9, 0); worldUV(g2, 2);   // o corpo
+  const g3 = new THREE.ConeGeometry(.6, 1.4, 6); g3.translate(0, 6.9, 0); worldUV(g3, 2);          // a madeira apontada
+  const g4 = new THREE.ConeGeometry(.2, .45, 6); g4.translate(0, 7.43, 0);                          // o grafite
+  [[g1, MAT.dense, RED], [g2, MAT.med, INK], [g3, MAT.plain, INK], [g4, MAT.dense, INK]].forEach(([g, m, c]) => {
+    const mesh = new THREE.Mesh(g, m);
+    mesh.add(ink(g, c, .03));
+    scene.add(mesh);
+  });
+})();
+// uns caixotes e muretas em volta da praça
+addBox(7, 6, 1.6, 1.6, 1.6, 'crate', 0, GREEN); addBox(7, 6, 1.1, 1.1, 1.1, 'crate', 1.6, GREEN);
+addBox(-7, 4, 1.2, 1.2, 1.2, 'crate', 0, ORANGE); addBox(4, -8, 2.4, 1.4, 1.4, 'crate');
+addBox(-7, -7, 4, 0.6, 1.1, 'brick'); addBox(9, -3, 0.6, 3.5, 1.1, 'brick');
+addBox(-3, 9, 3, 0.6, 1.1, 'brick');
+
+// Os prédios lá de fora do muro, em roda. Ninguém chega lá: são só o horizonte.
+seed = 99;
+for (let a = 0; a < Math.PI * 2; a += 0.16) {
+  const r = 70 + rng() * 17;
+  addBox(Math.cos(a) * r, Math.sin(a) * r, 7 + rng() * 8, 7 + rng() * 8, 12 + rng() * 17, rng() < .6 ? 'win' : 'hatch');
+}
+// As nuvens: cada uma são quatro ovais riscadas, viradas pro meio da cidade.
+for (let i = 0; i < 9; i++) {
+  const a = Math.random() * 6.28, r = rand(90, 180), y = rand(45, 70), cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+  for (let k = 0; k < 4; k++) {
+    const pts = [], R = rand(4, 8);
+    for (let s = 0; s <= 24; s++) { const t = s / 24 * Math.PI * 2; pts.push(new V3(Math.cos(t) * R, Math.sin(t) * R * .55, 0)); }
+    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lm(INK, .45, false));
+    l.position.set(cx + (k - 1.5) * R * 1.1, y + (k % 2) * R * .3, cz);
+    l.lookAt(0, y, 0);
+    scene.add(l);
+  }
+}
+
+// ---------- cúpula ----------
+// A cidade fica debaixo de uma cúpula de vidro, feita de triângulos. A esfera é enorme (raio 112)
+// e o centro dela fica enterrado (y = -26), então só a parte de cima aparece.
+const DOME_R = 112, DOME_Y = -26;
+(() => {
+  // O icosaedro subdividido é uma bola feita só de triângulos quase iguais.
+  const ico = new THREE.IcosahedronGeometry(DOME_R, 6);
+  const p = ico.attributes.position.array, seen = new Set(), segs = [], panels = [];
+  const key = i => Math.round(p[i] * 10) + ',' + Math.round(p[i + 1] * 10) + ',' + Math.round(p[i + 2] * 10);
+  for (let t = 0; t < p.length; t += 9) { // 9 números por triângulo: 3 pontos de 3 coordenadas
+    const miny = Math.min(p[t + 1], p[t + 4], p[t + 7]);
+    if (miny < 8) continue; // os triângulos de baixo ficam de fora
+    // Cada lado é dividido por dois triângulos vizinhos. O `seen` evita riscar o mesmo lado duas vezes.
+    for (const [a, b] of [[t, t + 3], [t + 3, t + 6], [t + 6, t]]) {
+      const ka = key(a), kb = key(b), k = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      segs.push(p[a], p[a + 1] + DOME_Y, p[a + 2], p[b], p[b + 1] + DOME_Y, p[b + 2]);
+    }
+    // lá no alto, alguns vidros são amarelados
+    if (miny > 45 && Math.random() < .16) for (let i = 0; i < 9; i++) panels.push(i % 3 === 1 ? p[t + i] + DOME_Y : p[t + i]);
+  }
+  lineSegs(segs, lm(INK, .5, false));
+  scene.add(new THREE.LineSegments(sketchCopy(segs, .7), lm(INK, .22, false))); // o rascunho por cima
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.Float32BufferAttribute(panels, 3));
+  scene.add(new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ color: 0xf6d84a, transparent: true, opacity: .22, side: THREE.DoubleSide, depthWrite: false, fog: false })));
+  // As vigas principais: doze arcos que sobem do chão até o topo, cada um com linha dupla.
+  const rib = [], e0 = Math.asin(-DOME_Y / DOME_R); // e0 é o ângulo em que a esfera encontra o chão
+  for (let k = 0; k < 12; k++) {
+    const az = k / 12 * Math.PI * 2;
+    for (let i = 0; i < 30; i++) {
+      const e1 = e0 + (Math.PI / 2 - e0) * i / 30, e2 = e0 + (Math.PI / 2 - e0) * (i + 1) / 30;
+      for (const off of [0, .5]) rib.push(
+        Math.cos(e1) * Math.cos(az) * (DOME_R - off), Math.sin(e1) * DOME_R + DOME_Y, Math.cos(e1) * Math.sin(az) * (DOME_R - off),
+        Math.cos(e2) * Math.cos(az) * (DOME_R - off), Math.sin(e2) * DOME_R + DOME_Y, Math.cos(e2) * Math.sin(az) * (DOME_R - off));
+    }
+  }
+  lineSegs(rib, lm(INK, .85, false));
+})();
 
 // ---------- loop ----------
 let last = performance.now(), boilT = 0, boilS = false, menuA = 0;
@@ -217,10 +418,10 @@ function loop(now) {
     boilB.forEach(m => m.visible = boilS);
   }
 
-  // A câmera dá a volta devagar, sempre olhando pro meio.
-  menuA += dt * .25;
-  camera.position.set(Math.sin(menuA) * 12, 5, Math.cos(menuA) * 12);
-  camera.lookAt(0, 2, 0);
+  // A câmera dá a volta na praça devagar, olhando pro lápis. Na próxima etapa ela vira os olhos do jogador.
+  menuA += dt * .06;
+  camera.position.set(Math.sin(menuA) * 15, 6.5, Math.cos(menuA) * 15);
+  camera.lookAt(0, 4, 0);
 
   renderer.render(scene, camera);
 }
