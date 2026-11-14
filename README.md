@@ -88,7 +88,8 @@ O que fica guardado é um JSON com as 100 melhores linhas e os bilhetes já usad
 | E (segurar) | gancho estilo equipamento de manobra |
 | 1 / 2 / 3 | arma principal · pistola · régua (rodinha / Q também) |
 | B | loja (entre as ondas e nos primeiros 20s de cada onda) |
-| G | larga a arma no chão |
+| G | joga uma granada (2 no começo, +1 por onda limpa, até 3) |
+| X | larga a arma no chão |
 | F | pega/troca pela arma do chão |
 | R | recarregar |
 | Esc | pausa |
@@ -100,6 +101,17 @@ Cada boneco nasce com um nome (`BOT Zé`, `BOT Borrão`...). Quando alguém é a
 ## Mira
 
 Quatro riscos em cruz, como no CS. O vão no meio mostra o quanto o tiro vai espalhar: abre quando você anda, pula ou atira, e fecha quando você para ou mira com o botão direito. A conta é a mesma que o tiro usa.
+
+## Chefes
+
+- **O Colosso (onda 10, e de 10 em 10):** um boneco de 30 metros que vem de fora, quebra a cúpula e entra. Cada passo treme a tela e derruba o que estiver embaixo do pé. Ele arranca um bloco do prédio mais perto e arremessa em você; o resto do prédio desaba. Mira na cabeça.
+- **Mr. Borracha (elite nas ondas 5, 8, 13, 15, 18...):** uma borracha gigante que pula, apaga a tinta do chão e dá uma investida que derruba o cenário. A parte rosa é o ponto fraco.
+
+As regras (em que onda vêm, vida, tremor, arremesso) ficam em `js/chefes.js`, testadas em `test/chefes.test.js`.
+
+## Fôlego do gancho
+
+O gancho gasta fôlego enquanto puxa (uns 5 segundos e meio, menos com o gás no espaço) e enche de volta em 4 segundos depois de solto. A barrinha embaixo da mira mostra quanto tem. Regras em `js/folego.js`.
 
 ## Bonecos que escalam
 

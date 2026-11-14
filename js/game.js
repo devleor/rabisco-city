@@ -265,9 +265,10 @@ addBox(-3, 9, 3, 0.6, 1.1, 'brick');
 
 // skyline lá fora
 seed = 99;
+const skyline = [];
 for (let a = 0; a < Math.PI * 2; a += 0.16) {
   const r = 70 + rng() * 17;
-  addBox(Math.cos(a) * r, Math.sin(a) * r, 7 + rng() * 8, 7 + rng() * 8, 12 + rng() * 17, rng() < .6 ? 'win' : 'hatch', 0, INK, false, 4, { skip: true });
+  skyline.push(addBox(Math.cos(a) * r, Math.sin(a) * r, 7 + rng() * 8, 7 + rng() * 8, 12 + rng() * 17, rng() < .6 ? 'win' : 'hatch', 0, INK, false, 4, { skip: true }));
 }
 // arcos e nuvens no céu
 (() => {
@@ -290,6 +291,7 @@ for (let a = 0; a < Math.PI * 2; a += 0.16) {
 
 // ---------- cúpula ----------
 const DOME_R = 112, DOME_Y = -26;
+const DOMO = { furado: false }; // as linhas da cúpula, pra abrir (e fechar) o buraco do Colosso
 const domeHit = new THREE.Mesh(new THREE.SphereGeometry(DOME_R, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
   new THREE.MeshBasicMaterial({ visible: false, side: THREE.BackSide }));
 domeHit.position.y = DOME_Y; scene.add(domeHit); domeHit.updateMatrixWorld();
@@ -307,8 +309,9 @@ domeHit.position.y = DOME_Y; scene.add(domeHit); domeHit.updateMatrixWorld();
     }
     if (miny > 45 && Math.random() < .16) for (let i = 0; i < 9; i++) panels.push(i % 3 === 1 ? p[t + i] + DOME_Y : p[t + i]);
   }
-  lineSegs(segs, lm(INK, .5, false));
-  scene.add(new THREE.LineSegments(sketchCopy(segs, .7), lm(INK, .22, false)));
+  DOMO.segs = segs; DOMO.a = lineSegs(segs, lm(INK, .5, false));
+  DOMO.b = new THREE.LineSegments(sketchCopy(segs, .7), lm(INK, .22, false)); scene.add(DOMO.b);
+  DOMO.rab = Array.from(DOMO.b.geometry.attributes.position.array);
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(panels, 3));
   scene.add(new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ color: 0xf6d84a, transparent: true, opacity: .22, side: THREE.DoubleSide, depthWrite: false, fog: false })));
   // vigas principais (meridianos)
@@ -429,6 +432,7 @@ function boxDist(b, p) {
 function restoreWorld() {
   for (const so of solids) {
     Object.assign(so.b, so.orig); so.mesh.position.y = so.orig.minY; so.falling = false; so.vy = 0; so.hp = so.hp0; so.hitPlayer = false;
+    so.mesh.position.x = (so.orig.minX + so.orig.maxX) / 2; so.mesh.position.z = (so.orig.minZ + so.orig.maxZ) / 2; so.mesh.rotation.set(0, 0, 0);
     if (!so.alive) {
       so.alive = true; scene.add(so.mesh); worldMeshes.push(so.mesh);
       if (so.collide) boxes.push(so.b);
@@ -436,6 +440,8 @@ function restoreWorld() {
     }
   }
   for (const c of chunks) scene.remove(c.m); chunks.length = 0;
+  for (const m of skyline) if (!m.visible) { m.visible = true; worldMeshes.push(m); }
+  consertaDomo();
   buildShadows(); GRAPPLE_LIST = worldMeshes.concat([domeHit]); hitDirty = true;
 }
 function damageEnv(p, R, dmg) {
@@ -519,6 +525,7 @@ function updateFalling(dt) {
     if (ny <= ly) { ny = ly; hit = true; }
     so.b.minY = ny; so.b.maxY = ny + h; so.mesh.position.y = ny;
     for (const e of enemies.slice()) {
+      if (e.boss) continue; // chefe não morre esmagado
       const ep = e.g.position;
       if (ep.x > so.b.minX - .3 && ep.x < so.b.maxX + .3 && ep.z > so.b.minZ - .3 && ep.z < so.b.maxZ + .3 && so.b.minY < ep.y + 2 * e.T.scale && so.b.maxY > ep.y) hurtEnemy(e, 999, ep.clone().setY(ep.y + 1), new V3(0, -1, 0), false, 'CENÁRIO');
     }
@@ -767,6 +774,10 @@ const SFX = {
   boltBack: () => { sTone(420, 300, .05, .2); sNoise(.06, 3200, 3, .28, 'bandpass'); },
   boltFwd: () => { sTone(650, 480, .05, .2); sNoise(.05, 3600, 3, .28, 'bandpass'); },
   land: () => { sTone(90, 40, .15, .4, 'sine'); sNoise(.1, 600, 1, .3); },
+  passo: (v = 1) => { sTone(70, 24, .55, 1.1 * v, 'sine'); sNoise(.5, 300, .7, .8 * v, 'lowpass', 0, 60); },
+  arremesso: () => { sNoise(.5, 500, 1, .5, 'bandpass', 0, 1800); sTone(140, 60, .4, .3, 'sine'); },
+  borracha: () => { sNoise(.5, 1400, 4, .35, 'bandpass', 0, 500); sTone(180, 320, .5, .15, 'triangle'); },
+  granada: () => { sTone(1200, 900, .04, .14); sNoise(.12, 1800, 2, .2, 'bandpass'); },
 };
 
 // ---------- armas (viewmodel) ----------
@@ -1198,26 +1209,26 @@ function updateRockets(dt) {
     }
   }
 }
-function explode(p, n, dmg) {
+function explode(p, n, dmg, arma = 'BAZUCA') {
   const R = 7;
   const dP = p.distanceTo(new V3(P.pos.x, P.pos.y + 1, P.pos.z));
   const near = clamp(1 - dP / 40, 0, 1);
   SFX.boom(.5 + near * .6); onomato('KABOOM!', true);
   shake = Math.max(shake, .2 + near * .5); flashFxT = Math.max(flashFxT, .2 + near * .6); fovKick = Math.max(fovKick, near * 8);
   for (const e of enemies.slice()) {
-    const c = e.g.position.clone(); c.y += 1.1 * e.T.scale;
+    const c = e.g.position.clone(); c.y = e.boss === 'colosso' ? clamp(p.y, c.y + 1, c.y + 2 * e.T.scale) : c.y + 1.1 * e.T.scale; // no Colosso vale o ponto do corpo mais perto
     const d = c.distanceTo(p);
     if (d < R + .4 * e.T.scale) {
       const k = 1 - Math.min(1, d / R) * .7;
       const dir = c.clone().sub(p).setY(0); if (dir.lengthSq() < 1e-4) dir.set(rand(-1, 1), 0, rand(-1, 1)); dir.normalize();
-      hurtEnemy(e, dmg * k, c, dir, false, 'BAZUCA');
+      hurtEnemy(e, dmg * k, c, dir, false, arma);
       if (!e.dead) e.vel.addScaledVector(dir, 10 * k);
     }
   }
   if (dP < R) {
     const k = 1 - dP / R, kb = new V3(P.pos.x, P.pos.y + 1, P.pos.z).sub(p).normalize();
     P.vel.x += kb.x * 16 * k; P.vel.z += kb.z * 16 * k; P.vy += Math.max(0, kb.y) * 10 * k + 9 * k; P.onGround = false;
-    damagePlayer(Math.round(4 + 12 * k), nomeJogador(), 'BAZUCA');
+    damagePlayer(Math.round(4 + 12 * k), nomeJogador(), arma);
   }
   damageEnv(p, R, dmg);
   // marca de queimado + bolas de fogo desenhadas + fumaça + anéis
@@ -1267,6 +1278,7 @@ const hookM = (() => {
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x3a3f5a })); m.add(ink(g, INK, .01)); m.visible = false; scene.add(m); return m;
 })();
 function startGrapple() {
+  if (!Folego.pode(folego)) { SFX.miss(); return; }
   camera.updateMatrixWorld(); camera.getWorldDirection(_f);
   ray.set(camera.position, _f); ray.far = 140;
   const h = ray.intersectObjects(GRAPPLE_LIST, false)[0];
@@ -1275,8 +1287,11 @@ function startGrapple() {
   if (P.onGround) { P.vy = Math.max(P.vy, 4.5); P.onGround = false; }
 }
 function endGrapple() { if (G.on && G.hit) SFX.gas(); G.on = false; G.hit = false; }
-let gasT = 0;
+let gasT = 0, folego = 1, semGancho = 9; // fôlego do gancho (regras em js/folego.js)
 function updateGrapple(dt) {
+  const puxando = G.on && G.hit; semGancho = G.on ? 0 : semGancho + dt;
+  folego = Folego.passo(folego, puxando, dt * (puxando && keys.Space ? 1.5 : 1), semGancho); // com o gás (espaço) gasta mais rápido
+  if (puxando && folego <= 0) endGrapple();
   if (G.on) {
     G.shoot = Math.min(1, G.shoot + dt * 260 / Math.max(8, G.dist));
     if (G.shoot >= 1 && !G.hit) { G.hit = true; SFX.hookHit(); shake = Math.max(shake, .08); }
@@ -1340,6 +1355,8 @@ const TYPES = {
   grunt: { hp: 45, speed: 5, dmg: 10, reach: 1.7, score: 100, scale: 1, cd: 1.0, th: .05, piece: .085 },
   spitter: { hp: 34, speed: 3.4, dmg: 9, reach: 0, score: 150, scale: 1.05, cd: 2.4, th: .045, piece: .085 },
   brute: { hp: 210, speed: 2.7, dmg: 24, reach: 2.3, score: 400, scale: 1.7, cd: 1.5, th: .07, piece: .11 },
+  colosso: { hp: 3000, speed: 3.4, dmg: 34, reach: 0, score: 5000, scale: 15, cd: 6.5, th: .06, piece: .22 },
+  borracha: { hp: 700, speed: 7, dmg: 22, reach: 0, score: 1500, scale: 1, cd: 4, th: .05, piece: .1 },
 };
 const SPAWNS = [];
 for (const t of [-50, -30, -10, 10, 30, 50]) SPAWNS.push([-52, t], [52, t], [t, -52], [t, 52]);
@@ -1374,7 +1391,7 @@ const PEN = (() => {
 function makeEnemy(type, x, z) {
   const T0 = TYPES[type], g = new THREE.Group(), th = T0.th;
   const e = { type, nome: Abates.nomeDeBot(), T: T0, g, hp: T0.hp * (1 + (wave - 1) * .08), vel: new V3(), wind: 0, cd: rand(.6, 1.4), stuck: 0, detour: 0, dDir: 1, vy: 0, sobe: false, walk: rand(0, 6), amp: 0, flash: 0, flinch: 0, slam: 0, drawT: 0, drawIdx: -1, parts: [], strafe: Math.random() < .5 ? -1 : 1, dead: false, power: 5 };
-  const mat = new THREE.MeshBasicMaterial({ color: type === 'brute' ? 0x1d2b8f : INK });
+  const mat = new THREE.MeshBasicMaterial({ color: type === 'brute' ? 0x1d2b8f : type === 'colosso' ? 0x6b1322 : INK });
   e.mat = mat; e.baseHex = mat.color.getHex(); e.base = mat.color.clone();
   const hipY = .95;
   e.legs = []; e.shins = []; e.arms = []; e.fores = [];
@@ -1499,7 +1516,7 @@ function shatter(e, dir, power) {
 function killEnemy(e, head, dir) {
   e.dead = true; kills++;
   const pts = e.T.score + (head ? 50 : 0); score += pts;
-  const cash = (e.type === 'brute' ? 900 : e.type === 'spitter' ? 350 : 300) + (head ? 100 : 0); money = Math.min(16000, money + cash);
+  const cash = (e.boss === 'colosso' ? 6000 : e.boss ? 2500 : e.type === 'brute' ? 900 : e.type === 'spitter' ? 350 : 300) + (head ? 100 : 0); money = Math.min(16000, money + cash);
   setTimeout(() => popup('+$' + cash, '#2e9a4a'), 120);
   popup((head ? 'na cabeça! ' : 'apagado! ') + '+' + pts);
   if (state === 'play') Abates.mostra($('abates'), nomeJogador(), e.por, e.nome, head, true); // bala que chega depois da sua morte não conta
@@ -1509,6 +1526,10 @@ function killEnemy(e, head, dir) {
   for (let i = 0; i < 3; i++) floorSplat(p.x + rand(-1.5, 1.5) + dir.x * 1.5, p.y + 1, p.z + rand(-1.5, 1.5) + dir.z * 1.5, rand(.4, 1));
   burst(p.clone().setY(p.y + 1.4 * e.T.scale), 28, 6);
   const ix = enemies.indexOf(e); if (ix >= 0) enemies.splice(ix, 1); hitDirty = true;
+  if (e.boss) {
+    if (e.joga) soltaBloco(e, new V3(0, 0, 0)); // o bloco que estava na mão cai
+    banner(e.nome + ' APAGADO', '+$' + cash + ' · +' + pts + ' pontos', 3.5); SFX.boom(.9); shake = Math.max(shake, .6);
+  }
   shatter(e, dir, e.power);
   const r = Math.random();
   if (r < .14) spawnPickup('hp', p.x, p.z); else if (r < .3) spawnPickup('ammo', p.x, p.z);
@@ -1571,6 +1592,267 @@ function spawnPickup(kind, x, z) {
   pickups.push({ g, kind, t: Math.random() * 6, gy });
 }
 
+// ---------- chefes: o Colosso e o Mr. Borracha ----------
+// As regras (onda, vida, tremor, arremesso) estão em js/chefes.js. Aqui é o desenho e o comportamento.
+const arremessos = [];
+const vidroMat = new THREE.MeshBasicMaterial({ color: 0xf6d84a, transparent: true, opacity: .55, side: THREE.DoubleSide });
+const chefeBox = document.createElement('div'); chefeBox.id = 'chefe'; chefeBox.innerHTML = '<span></span><div><i></i></div>';
+document.getElementById('hud').appendChild(chefeBox);
+const granV = document.createElement('div'); granV.id = 'granV'; document.getElementById('hud').appendChild(granV);
+const folegoBar = document.createElement('div'); folegoBar.id = 'folego'; folegoBar.innerHTML = '<i></i>'; document.getElementById('hud').appendChild(folegoBar);
+function pedacos(c, esp, mats, n, from, tam = 1) {
+  for (let i = 0; i < n; i++) {
+    const cg = CHUNK_GEOS[Math.floor(Math.random() * 3)];
+    const m = new THREE.Mesh(cg.g, Array.isArray(mats) ? mats[Math.floor(Math.random() * mats.length)] : mats); m.add(cg.inkP.clone());
+    m.position.set(c.x + rand(-esp, esp), Math.max(.3, c.y + rand(-esp, esp) * .6), c.z + rand(-esp, esp));
+    const out = m.position.clone().sub(from); out.y = Math.abs(out.y) + 1; out.normalize();
+    m.scale.setScalar(tam * rand(.7, 1.3)); scene.add(m);
+    chunks.push({ m, v: out.multiplyScalar(rand(5, 14)).add(new V3(0, rand(2, 6), 0)), av: new V3(rand(-8, 8), rand(-8, 8), rand(-8, 8)), t: 0, s: m.scale.x });
+    if (chunks.length > 160) { scene.remove(chunks[0].m); chunks.shift(); }
+  }
+}
+function furaDomo(p, R) {
+  DOMO.a.geometry.setAttribute('position', new THREE.Float32BufferAttribute(Chefes.semBuraco(DOMO.segs, p, R), 3));
+  DOMO.b.geometry.setAttribute('position', new THREE.Float32BufferAttribute(Chefes.semBuraco(DOMO.rab, p, R), 3));
+  DOMO.furado = true;
+}
+function consertaDomo() {
+  if (!DOMO.furado) return;
+  DOMO.a.geometry.setAttribute('position', new THREE.Float32BufferAttribute(DOMO.segs, 3));
+  DOMO.b.geometry.setAttribute('position', new THREE.Float32BufferAttribute(DOMO.rab, 3));
+  DOMO.furado = false;
+}
+function quebraDomo(x, z) {
+  const L = Math.hypot(x, z) || 1, ux = x / L, uz = z / L, p = new V3(ux * 104, 16, uz * 104);
+  furaDomo(p, 34);
+  pedacos(p, 16, vidroMat, 40, new V3(ux * 130, 10, uz * 130), 2.2);
+  for (let i = 0; i < 14; i++) puff(p.clone().add(new V3(rand(-14, 14), rand(-10, 16), rand(-14, 14))), rand(4, 8), rand(1.5, 2.6), new V3(-ux * rand(2, 6), rand(0, 2), -uz * rand(2, 6)), .5);
+  SFX.boom(1.2); onomato('CRAAASH!', true); shake = Math.max(shake, .9); flashFxT = Math.max(flashFxT, .5);
+  banner('A CÚPULA QUEBROU', 'ele entrou · mira na cabeça', 3.5);
+}
+function spawnChefe(tipo) {
+  let e;
+  if (tipo === 'colosso') {
+    const a = Math.atan2(P.pos.z, P.pos.x) + Math.PI + rand(-.6, .6); // do lado oposto ao jogador, fora da cúpula
+    e = makeEnemy('colosso', Math.cos(a) * 124, Math.sin(a) * 124);
+    e.nome = 'O COLOSSO'; e.cd = 5;
+  } else {
+    let pts = SPAWNS.filter(p => Math.hypot(p[0] - P.pos.x, p[1] - P.pos.z) > 30);
+    const p = pts[Math.floor(Math.random() * pts.length)] || SPAWNS[0];
+    e = makeBorracha(p[0], p[1]);
+  }
+  e.boss = tipo; e.hp = e.hp0 = Chefes.vida(tipo, wave);
+  return e;
+}
+// quem está perto de um impacto no chão: o jogador leva dano e é jogado pra longe, os bonecos comuns são esmagados
+function impactoNoChao(x, z, R, dano, quem, arma) {
+  const d = Math.hypot(P.pos.x - x, P.pos.z - z);
+  if (d < R && P.pos.y - groundAt(x, z, P.pos.y + 1, .5) < 4) {
+    const k = 1 - d / R, ux = d > .01 ? (P.pos.x - x) / d : 1, uz = d > .01 ? (P.pos.z - z) / d : 0;
+    P.vel.x += ux * 14 * k; P.vel.z += uz * 14 * k; P.vy = Math.max(P.vy, 6 + 5 * k); P.onGround = false;
+    damagePlayer(Math.round(dano * (.35 + .65 * k)), quem, arma);
+  }
+  for (const o of enemies.slice()) {
+    if (o.boss) continue;
+    const q = o.g.position;
+    if (Math.hypot(q.x - x, q.z - z) < R * .7) hurtEnemy(o, 999, q.clone().setY(q.y + 1), new V3(q.x - x, 0, q.z - z).normalize(), false, arma);
+  }
+}
+function pisada(e, x, z) {
+  const d = Math.hypot(P.pos.x - x, P.pos.z - z);
+  shake = Math.max(shake, Chefes.tremor(d, .85)); SFX.passo(.35 + Chefes.tremor(d, .9));
+  ringFx(x, z, INK);
+  for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283; puff(new V3(x + Math.cos(a) * 2, .4, z + Math.sin(a) * 2), rand(1.5, 3), rand(1, 1.8), new V3(Math.cos(a) * rand(2, 5), rand(.3, 1), Math.sin(a) * rand(2, 5)), .45); }
+  damageEnv(new V3(x, 1, z), 5.5, 260);
+  for (const m of skyline) {
+    if (!m.visible || Math.hypot(m.position.x - x, m.position.z - z) > 9) continue;
+    m.visible = false; const wi3 = worldMeshes.indexOf(m); if (wi3 >= 0) worldMeshes.splice(wi3, 1); worldDirtyT = .25; pedacos(new V3(m.position.x, 8, m.position.z), 5, m.material, 12, new V3(x, 0, z), 1.8);
+  }
+  impactoNoChao(x, z, 5.5, 34, e.nome, 'PISÃO');
+}
+// o Colosso pega o bloco de prédio mais perto (ou arranca uma pedra do chão) pra arremessar
+function pegaBloco(e) {
+  const c = e.g.position.clone(); c.y += 9;
+  let melhor = null, md = 20;
+  for (const so of solids) {
+    if (!so.alive || so.static || so.falling || so.vol < 40) continue;
+    const d = boxDist(so.b, c);
+    if (d < md) { md = d; melhor = so; }
+  }
+  let m;
+  if (melhor) {
+    const so = melhor; m = so.mesh; so.alive = false;
+    const wi2 = worldMeshes.indexOf(m); if (wi2 >= 0) worldMeshes.splice(wi2, 1);
+    const bi = boxes.indexOf(so.b); if (bi >= 0) boxes.splice(bi, 1);
+    for (const x of so.extras) scene.remove(x);
+    removeDecalsIn(so.b);
+    if (G.on && G.a.x > so.b.minX - .3 && G.a.x < so.b.maxX + .3 && G.a.y > so.b.minY - .3 && G.a.y < so.b.maxY + .3 && G.a.z > so.b.minZ - .3 && G.a.z < so.b.maxZ + .3) endGrapple();
+    worldDirtyT = .25; settle();
+  } else {
+    const geo = new THREE.BoxGeometry(5, 4, 5); geo.translate(0, 2, 0); worldUV(geo, 4);
+    m = new THREE.Mesh(geo, STYLES.hatch.map((k, i) => litMat(k, FACE_TINT[i]))); m.add(ink(geo, INK, .05));
+    m.position.set(e.g.position.x, -3, e.g.position.z); scene.add(m); m.userData.pedra = true;
+  }
+  e.joga = { m, t: 0, de: m.position.clone() };
+}
+function soltaBloco(e, v) {
+  const j = e.joga; e.joga = null;
+  arremessos.push({ m: j.m, v, av: new V3(rand(-1.5, 1.5), rand(-1, 1), rand(-1.5, 1.5)), de: e.nome });
+}
+function updateColosso(e, dt) {
+  const g = e.g, sc = e.T.scale;
+  const dx = P.pos.x - g.position.x, dz = P.pos.z - g.position.z, dist = Math.hypot(dx, dz) || .001;
+  let dr = Math.atan2(dx, dz) - g.rotation.y; while (dr > Math.PI) dr -= Math.PI * 2; while (dr < -Math.PI) dr += Math.PI * 2;
+  g.rotation.y += dr * Math.min(1, dt * 1.6);
+  const fx2 = Math.sin(g.rotation.y), fz2 = Math.cos(g.rotation.y);
+  const anda = dist > 7 && !e.joga ? e.T.speed : 0;
+  g.position.x += fx2 * anda * dt; g.position.z += fz2 * anda * dt;
+  if (!e.entrou && Math.hypot(g.position.x, g.position.z) < 106) { e.entrou = true; quebraDomo(g.position.x, g.position.z); }
+  // passo: a cada meia volta um pé bate, e o chão treme
+  const antes = e.walk; e.walk += (anda > 0 ? anda : e.joga ? 0 : 1.6) * dt * 2.7 / sc * 2.2;
+  const pe = Chefes.pisou(antes, e.walk);
+  if (pe >= 0) { const lado = pe ? 1 : -1; pisada(e, g.position.x + fx2 * 2.5 + fz2 * lado * 1.6, g.position.z + fz2 * 2.5 - fx2 * lado * 1.6); }
+  for (let i = 0; i < 2; i++) {
+    const p = e.walk + i * Math.PI;
+    e.legs[i].rotation.x = -Math.sin(p) * .6; e.shins[i].rotation.x = Math.max(0, Math.sin(p + 1.3)) * .9 + .08;
+  }
+  // arremesso
+  e.cd -= dt;
+  if (!e.joga && e.cd <= 0 && dist < 100 && e.entrou) pegaBloco(e);
+  let bx = Math.sin(e.walk) * .5, by = -Math.sin(e.walk) * .5, fo = -.5, lean = .12;
+  if (e.joga) {
+    const j = e.joga; j.t += dt;
+    const k = clamp(j.t / 1.1, 0, 1), mao = new V3(g.position.x + fx2 * 3, 2.05 * sc, g.position.z + fz2 * 3);
+    j.m.position.lerpVectors(j.de, mao, k * k * (3 - 2 * k)); j.m.rotation.y += dt * .8;
+    bx = by = -2.9 * k; fo = -.2; lean = -.15 * k;
+    if (j.t >= 1.35) {
+      const T = clamp(dist / 38, 1.2, 2.4), alvo = { x: P.pos.x + P.vel.x * T * .5, y: P.pos.y, z: P.pos.z + P.vel.z * T * .5 };
+      const v = Chefes.arremesso(j.m.position, alvo, T, 20);
+      soltaBloco(e, new V3(v.x, v.y, v.z)); e.cd = 6.5; e.slam = .5; SFX.arremesso();
+    }
+  } else if (e.slam > 0) { e.slam -= dt; bx = by = .9; lean = .45; }
+  e.arms[0].rotation.x += (bx - e.arms[0].rotation.x) * Math.min(1, dt * 6); e.arms[1].rotation.x += (by - e.arms[1].rotation.x) * Math.min(1, dt * 6);
+  for (let i = 0; i < 2; i++) e.fores[i].rotation.x = fo;
+  e.body.rotation.x += (lean - e.body.rotation.x) * Math.min(1, dt * 5);
+  e.body.position.y = .95 + Math.abs(Math.sin(e.walk)) * .03;
+  if (e.flash > 0) e.flash -= dt;
+  e.mat.color.copy(e.flash > 0 ? RED_C : inkNow(e.baseHex));
+}
+function updateArremessos(dt) {
+  for (let i = arremessos.length - 1; i >= 0; i--) {
+    const a = arremessos[i], q = a.m.position;
+    a.v.y -= 20 * dt; q.addScaledVector(a.v, dt);
+    a.m.rotation.x += a.av.x * dt; a.m.rotation.y += a.av.y * dt; a.m.rotation.z += a.av.z * dt;
+    let bateu = q.y <= .2 || Math.hypot(q.x - P.pos.x, q.y - (P.pos.y + 1), q.z - P.pos.z) < 3;
+    if (!bateu) for (const b of boxes) if (q.x > b.minX && q.x < b.maxX && q.y > b.minY && q.y < b.maxY && q.z > b.minZ && q.z < b.maxZ) { bateu = true; break; }
+    if (!bateu) continue;
+    const p = q.clone(); p.y = Math.max(p.y, .3);
+    pedacos(p, 2.5, a.m.material, 16, p.clone().setY(p.y - 2), 1.5);
+    for (let k = 0; k < 10; k++) puff(p.clone().add(new V3(rand(-3, 3), rand(0, 2), rand(-3, 3))), rand(1.5, 3), rand(1.2, 2.2), new V3(rand(-3, 3), rand(.5, 2), rand(-3, 3)), .5);
+    const d = p.distanceTo(P.pos);
+    SFX.boom(.4 + Chefes.tremor(d, .7, 60)); onomato('CRASH!', d < 25); shake = Math.max(shake, Chefes.tremor(d, .8, 60));
+    damageEnv(p, 6, 220);
+    impactoNoChao(p.x, p.z, 7, 40, a.de, 'PRÉDIO');
+    scene.remove(a.m); if (a.m.userData.pedra) a.m.geometry.dispose();
+    arremessos.splice(i, 1);
+  }
+}
+
+// Mr. Borracha: uma borracha gigante que pula, apaga a tinta do chão e dá investida derrubando o que tiver na frente
+const borrachaMats = { rosa: 0xf2a3b3, azul: 0x3f6fd1, cinta: 0xf7f2e4 };
+function makeBorracha(x, z) {
+  const g = new THREE.Group(), corpo = new THREE.Group(); g.add(corpo);
+  const e = { type: 'borracha', nome: 'MR. BORRACHA', T: TYPES.borracha, g, corpo, hp: 1, vel: new V3(), cd: 3.5, flash: 0, flinch: 0, power: 8, parts: [], pieces: [], cores: [], pen: null, dead: false, drawn: true, fase: 'chao', t: .6, vy: 0, dir: new V3(0, 0, 1) };
+  const parte = (w, h, d, y, hex) => {
+    const geo = new THREE.BoxGeometry(w, h, d), mat = new THREE.MeshBasicMaterial({ color: hex });
+    const m = new THREE.Mesh(geo, mat); m.position.y = y; m.add(ink(geo, INK, .03)); corpo.add(m);
+    e.pieces.push(m); e.cores.push({ mat, base: new THREE.Color(hex) }); return m;
+  };
+  parte(2.2, 1.5, 1.2, .75, borrachaMats.azul); parte(2.3, .7, 1.3, 1.85, borrachaMats.cinta); parte(2.2, 1.5, 1.2, 2.95, borrachaMats.rosa);
+  // cara brava na parte rosa
+  const rosto = new THREE.Group(); rosto.position.set(0, 2.95, .62); corpo.add(rosto);
+  const tinta = new THREE.MeshBasicMaterial({ color: INK });
+  for (const s of [-1, 1]) {
+    const olho = new THREE.Mesh(new THREE.CircleGeometry(.17, 14), eyeMat); olho.position.set(s * .45, .12, 0); rosto.add(olho);
+    const sob = new THREE.Mesh(new THREE.PlaneGeometry(.5, .1), tinta); sob.position.set(s * .45, .42, .005); sob.rotation.z = -s * .45; rosto.add(sob);
+  }
+  const boca = new THREE.Mesh(new THREE.TorusGeometry(.3, .045, 5, 14, Math.PI), tinta); boca.position.set(0, -.5, 0); rosto.add(boca);
+  const hb = (w, h, d, y, cabeca) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), hitMat); m.position.y = y; m.userData.enemy = e; m.userData.head = cabeca; corpo.add(m); e.parts.push(m); };
+  hb(2.3, 2.2, 1.3, 1.1, false); hb(2.2, 1.5, 1.2, 2.95, true); // a parte rosa é o ponto fraco
+  const sh = new THREE.Mesh(blobGeo, blobMat); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.scale.setScalar(6); g.add(sh);
+  g.position.set(x, 0, z); scene.add(g); enemies.push(e); hitDirty = true; ringFx(x, z, RED);
+  return e;
+}
+function apagaTinta(x, z, R) {
+  for (let i = decals.length - 1; i >= 0; i--) {
+    const q = decals[i].position;
+    if (q.y < 1 && Math.hypot(q.x - x, q.z - z) < R) { scene.remove(decals[i]); decals.splice(i, 1); }
+  }
+}
+function updateBorracha(e, dt) {
+  const g = e.g, dx = P.pos.x - g.position.x, dz = P.pos.z - g.position.z, dist = Math.hypot(dx, dz) || .001;
+  e.cd -= dt; e.t -= dt;
+  let sy = 1;
+  const vira = k => { let dr = Math.atan2(dx, dz) - g.rotation.y; while (dr > Math.PI) dr -= Math.PI * 2; while (dr < -Math.PI) dr += Math.PI * 2; g.rotation.y += dr * Math.min(1, dt * k); };
+  if (e.fase === 'chao') { // amassada no chão, esperando o próximo pulo
+    vira(8); sy = 1 - .25 * clamp(e.t / .35, 0, 1);
+    if (e.t <= 0) {
+      if (e.cd <= 0 && dist > 5) { /* de longe a investida também fura o prédio do caminho */ e.fase = 'prepara'; e.t = .7; SFX.borracha(); }
+      else { e.fase = 'pula'; e.vy = 9.5; e.dir.set(dx / dist, 0, dz / dist); e.pulo = Math.min(e.T.speed, dist * 1.2); }
+    }
+  } else if (e.fase === 'pula') {
+    e.vy -= 24 * dt; g.position.y += e.vy * dt; sy = 1 + clamp(e.vy * .02, -.12, .22);
+    g.position.x += e.dir.x * e.pulo * dt; g.position.z += e.dir.z * e.pulo * dt;
+    if (g.position.y <= 0) {
+      g.position.y = 0; e.fase = 'chao'; e.t = .35;
+      shake = Math.max(shake, Chefes.tremor(dist, .4, 40)); SFX.land(); ringFx(g.position.x, g.position.z, INK);
+      apagaTinta(g.position.x, g.position.z, 4.5); damageEnv(new V3(g.position.x, 1, g.position.z), 2.2, 45);
+      if (dist < 2.8 && P.pos.y < 2.2) impactoNoChao(g.position.x, g.position.z, 3.2, e.T.dmg + wave, e.nome, 'BORRACHADA');
+    }
+  } else if (e.fase === 'prepara') { // treme antes da investida
+    vira(10); e.corpo.position.x = Math.sin(performance.now() / 22) * .12; sy = .82;
+    if (e.t <= 0) { e.fase = 'investe'; e.t = .9; e.dir.set(dx / dist, 0, dz / dist); e.corpo.position.x = 0; e.bateu = false; e.rastro = 0; }
+  } else if (e.fase === 'investe') {
+    g.position.x += e.dir.x * 21 * dt; g.position.z += e.dir.z * 21 * dt; sy = .9;
+    e.corpo.rotation.x = .28;
+    e.rastro -= dt;
+    if (e.rastro <= 0) { e.rastro = .12; apagaTinta(g.position.x, g.position.z, 3); damageEnv(new V3(g.position.x, 1.5, g.position.z), 2.6, 70); puff(new V3(g.position.x, .5, g.position.z), 1.6, .8, new V3(0, .6, 0), .4); }
+    if (!e.bateu && dist < 2.4 && Math.abs(P.pos.y - g.position.y) < 3) { e.bateu = true; impactoNoChao(g.position.x, g.position.z, 3.4, e.T.dmg + 8 + wave, e.nome, 'BORRACHADA'); }
+    if (e.t <= 0) { e.fase = 'chao'; e.t = .8; e.cd = e.T.cd; e.corpo.rotation.x = 0; }
+  }
+  if (e.fase !== 'investe') pushOut(g.position, 1.3, g.position.y, 3);
+  g.position.x = clamp(g.position.x, -56, 56); g.position.z = clamp(g.position.z, -56, 56);
+  e.corpo.scale.set(1 + (1 - sy) * .6, sy, 1 + (1 - sy) * .6);
+  if (e.flash > 0) e.flash -= dt;
+  for (const c of e.cores) c.mat.color.copy(e.flash > 0 ? RED_C : c.base);
+}
+
+// ---------- granada (tecla G) ----------
+const granadasNoAr = [];
+let granadas = 2;
+const granGeo = new THREE.SphereGeometry(.13, 8, 6);
+const granMat = new THREE.MeshBasicMaterial({ color: 0x3f7a3a });
+function jogaGranada() {
+  if (granadas <= 0) { SFX.click(); return; }
+  granadas--; camera.updateMatrixWorld(); camera.getWorldDirection(_f);
+  const m = new THREE.Mesh(granGeo, granMat); m.add(ink(granGeo, INK, .01)); m.position.copy(camera.position).addScaledVector(_f, .6); scene.add(m);
+  granadasNoAr.push({ m, v: _f.clone().multiplyScalar(19).add(new V3(P.vel.x, 4 + Math.max(0, P.vy) * .5, P.vel.z)), t: 1.8 });
+  SFX.granada();
+}
+function updateGranadas(dt) {
+  for (let i = granadasNoAr.length - 1; i >= 0; i--) {
+    const gr = granadasNoAr[i], q = gr.m.position;
+    gr.t -= dt; gr.v.y -= 20 * dt;
+    const ax = q.x, az = q.z;
+    q.addScaledVector(gr.v, dt); gr.m.rotation.x += dt * 9;
+    _mao.set(q.x, 0, q.z); pushOut(_mao, .15, q.y - .15, .3); // bateu numa parede: quica de volta
+    if (Math.hypot(_mao.x - q.x, _mao.z - q.z) > 1e-4) { q.x = ax; q.z = az; gr.v.x *= -.45; gr.v.z *= -.45; }
+    const chao = groundAt(q.x, q.z, q.y + .2, .1) + .13;
+    if (q.y < chao) { q.y = chao; gr.v.y *= -.4; gr.v.x *= .65; gr.v.z *= .65; if (Math.abs(gr.v.y) > 1.5) SFX.click(); }
+    if (gr.t <= 0) { scene.remove(gr.m); granadasNoAr.splice(i, 1); explode(q.clone(), new V3(0, 1, 0), 170, 'GRANADA'); }
+  }
+}
+
 // ---------- tiro ----------
 const _f = new V3(), _r = new V3(), _u = new V3();
 function rebuildHitList() {
@@ -1594,7 +1876,7 @@ function fire() {
     let hit = false;
     for (const e of enemies.slice()) {
       const ex = e.g.position.x, ez = e.g.position.z, dx = ex - P.pos.x, dz = ez - P.pos.z, d = Math.hypot(dx, dz);
-      const ey = e.g.position.y, dy = (P.pos.y + 1.2) - ey - 1.3 * e.T.scale;
+      const ey = e.g.position.y, dy = e.boss === 'colosso' ? (P.pos.y + 1.2) - clamp(P.pos.y + 1.2, ey, ey + 2 * e.T.scale) : (P.pos.y + 1.2) - ey - 1.3 * e.T.scale;
       if (d < range + .4 * e.T.scale && Math.abs(dy) < 2.6 && (dx * _f.x + dz * _f.z) / (d || 1) > .4) {
         hurtEnemy(e, w.dmg * bonus, new V3(ex, clamp(P.pos.y + 1.2, ey + .5, ey + 1.7 * e.T.scale), ez), _f.clone(), false, w.name); hit = true;
       }
@@ -1766,6 +2048,11 @@ let bannerT = 0;
 function banner(t, s, dur = 2.6) { $('bT').textContent = t; $('bS').textContent = s || ''; $('banner').style.opacity = 1; bannerT = dur; }
 function updateHUD() {
   $('scoreV').textContent = score;
+  const ch = enemies.find(e => e.boss);
+  chefeBox.style.opacity = ch ? 1 : 0;
+  if (ch) { chefeBox.firstChild.textContent = ch.nome; chefeBox.querySelector('i').style.width = clamp(ch.hp / ch.hp0 * 100, 0, 100) + '%'; }
+  granV.textContent = 'G granada × ' + granadas; granV.className = granadas ? '' : 'red';
+  folegoBar.style.opacity = folego < .995 ? 1 : 0; folegoBar.firstChild.style.width = folego * 100 + '%'; folegoBar.className = Folego.pode(folego) ? '' : 'vazio';
   $('waveV').textContent = 'ONDA ' + Math.max(1, wave);
   const left = enemies.length + toSpawn;
   $('leftV').textContent = left + (left === 1 ? ' inimigo restante' : ' inimigos restantes');
@@ -1800,7 +2087,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') reload();
   const m = e.code.match(/^Digit([1-3])$/); if (m) switchTo(inv[['p', 's', 'm'][+m[1] - 1]]);
   if (e.code === 'KeyQ') switchTo(lastWi);
-  if (e.code === 'KeyG') dropCurrent();
+  if (e.code === 'KeyG' && !e.repeat && !buyOpen) jogaGranada();
+  if (e.code === 'KeyX') dropCurrent();
   if (e.code === 'KeyF') swapGround();
   if (e.code === 'KeyE' && !e.repeat) startGrapple();
   if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
@@ -1934,11 +2222,13 @@ function gameOver() {
   setTimeout(() => showMenu('VOCÊ FOI <span>APAGADO</span>', `Chegou até a <b>onda ${wave}</b> com <b>${score}</b> pontos e <b>${kills}</b> rabiscos apagados.<br>Vira a página e tenta de novo.`, 'DE NOVO'), 700);
 }
 function clearWorld() {
-  for (const e of enemies) { scene.remove(e.g); if (e.pen) scene.remove(e.pen); } enemies.length = 0;
+  for (const e of enemies) { scene.remove(e.g); if (e.pen) scene.remove(e.pen); if (e.joga) scene.remove(e.joga.m); } enemies.length = 0;
   for (const d of dying) scene.remove(d.o); dying.length = 0;
   for (const e of enemies) if (e.pen) scene.remove(e.pen);
   while (bullets.length) killBullet(0, true);
   for (const r of rockets) scene.remove(r.g); rockets.length = 0;
+  for (const a of arremessos) scene.remove(a.m); arremessos.length = 0;
+  for (const gr of granadasNoAr) scene.remove(gr.m); granadasNoAr.length = 0;
   for (const c of chunks) scene.remove(c.m); chunks.length = 0;
   for (const c of casings) vmScene.remove(c.m); casings.length = 0;
   for (const q of vmPuffs) vmScene.remove(q.sp); vmPuffs.length = 0;
@@ -1955,7 +2245,7 @@ function newGame() {
   Abates.limpa($('abates'));
   clearWorld(); restoreWorld();
   P.pos.set(0, 0, 5); P.vel.set(0, 0, 0); P.vy = 0; G.on = false; G.hit = false; G.missT = 0; P.hp = 100; P.yaw = 0; P.pitch = 0;
-  timeTarget = 0; score = 0; wave = 0; toSpawn = 0; inter = 6; kills = 0; money = 800; P.armor = 0; waveTime = 0; closeBuy();
+  timeTarget = 0; score = 0; wave = 0; toSpawn = 0; inter = 6; kills = 0; money = 800; P.armor = 0; waveTime = 0; granadas = 2; folego = 1; closeBuy();
   for (const gg of groundGuns) scene.remove(gg.g); groundGuns.length = 0;
   resetWeapons();
   spawnPickup('hp', 6, -4); spawnPickup('ammo', -5, -3);
@@ -1984,13 +2274,19 @@ function update(dt) {
       const tSub = timeTarget >= 1 && timeForWave(wave - 1) < 1 ? 'anoiteceu · a lanterna acende sozinha' : timeTarget === .5 && timeForWave(wave - 1) === 0 ? 'o sol tá se pondo' : timeTarget === .5 ? 'tá amanhecendo' : null;
       banner('ONDA ' + wave, tSub || (wave === 1 ? 'apaga eles antes que te apaguem' : ['eles voltaram com mais tinta', 'cuidado com os cuspidores', 'os grandões chegaram', 'a folha tá ficando cheia'][Math.min(3, wave - 2)]));
       SFX.wave();
+      const chefe = Chefes.daOnda(wave);
+      if (chefe) {
+        toSpawn = Chefes.capangas(chefe, wave); spawnChefe(chefe);
+        if (chefe === 'colosso') banner('ONDA ' + wave + ' · O COLOSSO', 'ele vem de fora da cúpula · o chão vai tremer', 4.5);
+        else banner('ONDA ' + wave + ' · MR. BORRACHA', 'ele apaga tudo · atira na parte rosa', 4);
+      }
       if (wave > 1) { spawnPickup('hp', rand(-8, 8), rand(-8, 8)); spawnPickup('ammo', rand(-8, 8), rand(-8, 8)); }
     }
   } else if (toSpawn > 0) {
     spawnT -= dt;
     if (spawnT <= 0 && enemies.length < 16) { spawnEnemy(); toSpawn--; spawnT = Math.max(.35, 1.3 - wave * .08); }
   } else if (enemies.length === 0 && wave > 0) {
-    const bonus = 200 * wave; score += bonus; inter = 9; money = Math.min(16000, money + 1000 + 250 * wave);
+    const bonus = 200 * wave; score += bonus; inter = 9; granadas = Math.min(3, granadas + 1); money = Math.min(16000, money + 1000 + 250 * wave);
     banner('ONDA ' + wave + ' LIMPA', 'respira · +$' + (1000 + 250 * wave) + ' · aperte B pra comprar', 3);
     SFX.pickup();
   }
@@ -2134,6 +2430,8 @@ function update(dt) {
   updateBullets(dt);
   updateRockets(dt);
   updateFalling(dt);
+  updateArremessos(dt);
+  updateGranadas(dt);
   // projéteis inimigos
   const eye = P.pos.clone(); eye.y += 1.1;
   for (let i = projs.length - 1; i >= 0; i--) {
@@ -2220,9 +2518,11 @@ function temParede(e, nx, nz) {
   return Math.hypot(_mao.x - x, _mao.z - z) > 1e-4;
 }
 function updateEnemy(e, dt) {
+  if (e.boss === 'borracha') return updateBorracha(e, dt);
   const g = e.g, T0 = e.T, sc = T0.scale;
   e.head.getWorldQuaternion(_q); e.face.quaternion.copy(_q.invert().multiply(camera.quaternion));
   if (!e.drawn) { drawEnemy(e, dt); if (e.flash > 0) e.flash -= dt; e.mat.color.copy(e.flash > 0 ? RED_C : e.base); return; }
+  if (e.boss === 'colosso') return updateColosso(e, dt);
   const dx = P.pos.x - g.position.x, dz = P.pos.z - g.position.z, dist = Math.hypot(dx, dz) || .001;
   const dirx = dx / dist, dirz = dz / dist;
   const speed = T0.speed * (1 + Math.min(.4, (wave - 1) * .035));
@@ -2282,7 +2582,7 @@ function updateEnemy(e, dt) {
   // separação
   _sep.set(0, 0, 0);
   for (const o of enemies) {
-    if (o === e) continue;
+    if (o === e || o.boss) continue;
     const ox = g.position.x - o.g.position.x, oz = g.position.z - o.g.position.z, od = Math.hypot(ox, oz), min = .5 * (sc + o.T.scale) + .2;
     if (od < min && od > .001) { _sep.x += ox / od * (min - od); _sep.z += oz / od * (min - od); }
   }

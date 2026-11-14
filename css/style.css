@@ -113,3 +113,10 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:cros
 #menu.inicio #placar li:nth-child(n+6){display:none}
 .note{font-size:14px;opacity:.7;margin-top:14px}
 @media (max-width:700px){#score,#hpBox,#ammoBox{left:20px}.card h1{font-size:48px}#bT{font-size:40px}}
+#chefe{position:absolute;left:50%;top:78px;transform:translateX(-50%) rotate(-.5deg);width:420px;max-width:70vw;text-align:center;font-family:'Gochi Hand',cursive;font-size:24px;color:var(--red);opacity:0;transition:opacity .3s;pointer-events:none}
+#chefe div{height:16px;border:1.8px solid var(--ink);border-radius:3px 6px 4px 5px;padding:2px;margin-top:2px}
+#chefe i{display:block;height:100%;background:repeating-linear-gradient(45deg,var(--red) 0 2px,transparent 2px 4px);transition:width .15s}
+#granV{position:absolute;left:130px;bottom:134px;font-size:15px}
+#folego{position:absolute;left:50%;top:50%;margin:36px 0 0 -32px;width:64px;height:7px;border:1.4px solid var(--ink);border-radius:3px;padding:1px;opacity:0;transition:opacity .2s}
+#folego i{display:block;height:100%;background:var(--orange)}
+#folego.vazio i{background:var(--red)}

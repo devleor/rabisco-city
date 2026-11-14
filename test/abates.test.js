@@ -87,8 +87,12 @@ test('o jogo dá nome aos bots e mostra o abate quando um deles é apagado', () 
 
 test('todo golpe num inimigo diz qual foi a arma', () => {
   const chamadas = jogo.split(/\r?\n/).filter(l => l.includes('hurtEnemy(') && !l.includes('function hurtEnemy'));
-  assert.strictEqual(chamadas.length, 4);
-  for (const l of chamadas) assert.match(l, /hurtEnemy\(.*, (w\.name|'BAZUCA'|'CENÁRIO')\)/, l.trim().slice(0, 80));
+  assert.strictEqual(chamadas.length, 5);
+  // `arma` é o nome que quem chamou passou: explosão (bazuca ou granada) e impacto de chefe (pisão, prédio, borrachada)
+  for (const l of chamadas) assert.match(l, /hurtEnemy\(.*, (w\.name|arma|'CENÁRIO')\)/, l.trim().slice(0, 80));
+  assert.match(jogo, /function explode\(p, n, dmg, arma = 'BAZUCA'\)/);
+  assert.match(jogo, /explode\(q\.clone\(\), new V3\(0, 1, 0\), 170, 'GRANADA'\)/);
+  for (const nome of ['PISÃO', 'PRÉDIO', 'BORRACHADA']) assert.ok(jogo.includes("e.nome, '" + nome + "')") || jogo.includes("a.de, '" + nome + "')"), nome);
 });
 
 test('a morte do jogador também entra no feed, e partida nova começa com ele vazio', () => {
