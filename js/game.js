@@ -1,6 +1,6 @@
-// RABISCO CITY, etapa 5: colisão.
-// O que a gente vê são meshes. O que segura o jogador são colisores: caixas invisíveis, feitas só de números.
-// Cada caixa do cenário ganha a sua, e o jogador para de atravessar parede e passa a subir em caixote.
+// RABISCO CITY, etapa 6: a arma e o tiro.
+// Uma pistola desenhada com caixas na frente da câmera, e um tiro que é um raio:
+// uma linha reta, do olho pra frente, até a primeira coisa em que ela bate.
 (() => {
 'use strict';
 
@@ -18,12 +18,16 @@ const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147
 const rand = (a, b) => a + Math.random() * (b - a);
 // Prende um número entre um mínimo e um máximo.
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+// Um sorteio que cai mais perto do zero que das pontas (entre -1 e 1). É o espalhamento do tiro.
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 const $ = id => document.getElementById(id); // atalho pra pegar um elemento da página
 
 // ---------- renderer ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// A cada foto o renderer vai pintar duas cenas, uma por cima da outra. Então a limpeza da tela fica por nossa conta.
+renderer.autoClear = false;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(PAPER);
 // A neblina: de 32 metros em diante as coisas vão sumindo na cor do papel, e a 130 já não aparecem.
@@ -33,11 +37,16 @@ const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 500);
 // A ordem dos giros: primeiro pros lados (Y), depois pra cima e pra baixo (X).
 // Na ordem padrão, olhar pra cima depois de virar entortaria o horizonte.
 camera.rotation.order = 'YXZ';
+// A arma mora numa cena só dela, com uma câmera só dela, parada. Ela é pintada por último, por cima do mundo.
+// Assim a arma nunca atravessa uma parede quando você encosta nela, e o ângulo de visão dela não muda.
+const vmScene = new THREE.Scene();
+const vmCam = new THREE.PerspectiveCamera(60, 1, 0.01, 10);
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  camera.aspect = vmCam.aspect = w / h;
   camera.updateProjectionMatrix();
+  vmCam.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
@@ -218,6 +227,8 @@ function ink(geo, color = INK, j = 0.03) {
 // Os colisores do mapa. Cada um guarda só seis números: onde a caixa começa e termina em cada eixo.
 // O nome técnico é AABB, uma caixa alinhada com os eixos. É a conta de colisão mais barata que existe.
 const boxes = [];
+// Os meshes do cenário em que um tiro pode bater. O raio do tiro é testado contra esta lista.
+const worldMeshes = [];
 
 // A peça de montar do jogo inteiro: uma caixa com hachura e contorno.
 // x e z dizem onde ela fica no chão, w, d e h são a largura, a profundidade e a altura,
@@ -232,6 +243,7 @@ function addBox(x, z, w, d, h, style = 'hatch', y0 = 0, color = INK, collide = t
   // caixa grande, traço mais solto
   m.add(ink(geo, color, Math.min(0.08, 0.02 + Math.max(w, h, d) * 0.004)));
   scene.add(m);
+  worldMeshes.push(m);
   if (collide) boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, minY: y0, maxY: y0 + h });
   return m;
 }
@@ -242,6 +254,7 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
+worldMeshes.push(ground);
 
 // Desenha um monte de linhas soltas de uma vez. `pts` é uma lista corrida de números:
 // x, y, z de onde cada linha começa, depois x, y, z de onde ela termina.
@@ -346,6 +359,7 @@ addBox(0, 0, 2.6, 2.6, 1, 'brick');
     const mesh = new THREE.Mesh(g, m);
     mesh.add(ink(g, c, .03));
     scene.add(mesh);
+    worldMeshes.push(mesh);
   });
   // O lápis não foi feito com addBox, então o colisor dele é escrito à mão: uma caixa fina e alta.
   boxes.push({ minX: -.6, maxX: .6, minZ: -.6, maxZ: .6, minY: 0, maxY: 8 });
@@ -457,6 +471,98 @@ function pushOut(pos, r, feet, height) {
   }
 }
 
+// ---------- manchas de tinta ----------
+// Onde o tiro bate fica um pingo de tinta. É um quadradinho plano com um desenho transparente,
+// colado na superfície. O nome disso em jogo é decal.
+function splatTex(color) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = color; g.strokeStyle = color;
+  // três bolas no meio e uns respingos em volta, alguns ligados ao meio por um risco
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(64 + rand(-14, 14), 64 + rand(-14, 14), rand(7, 15), 0, 7); g.fill(); }
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * 6.28, r = rand(22, 58), x = 64 + Math.cos(a) * r, y = 64 + Math.sin(a) * r;
+    g.beginPath(); g.arc(x, y, rand(1.5, 5.5), 0, 7); g.fill();
+    if (Math.random() < .5) { g.lineWidth = rand(2, 5); g.beginPath(); g.moveTo(64 + Math.cos(a) * 18, 64 + Math.sin(a) * 18); g.lineTo(x, y); g.stroke(); }
+  }
+  return new THREE.CanvasTexture(c);
+}
+// polygonOffset negativo: puxa o pingo um fio pra frente da parede, pra ele não brigar com ela.
+const decalMat = t => new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+const INK_DOTS = [0, 1, 2].map(() => decalMat(splatTex('#2a3fb0'))); // três desenhos diferentes
+const decalGeo = new THREE.PlaneGeometry(1, 1);
+const decals = [];
+// Cola um pingo no ponto p de uma superfície. n é a normal: a direção pra onde a superfície olha.
+function addDecal(p, n, mat, s) {
+  const m = new THREE.Mesh(decalGeo, mat);
+  m.position.copy(p).addScaledVector(n, 0.015 + Math.random() * 0.01);
+  m.lookAt(m.position.clone().add(n)); // deita o quadradinho na superfície
+  m.rotateZ(Math.random() * 6.28);     // e gira ele um tanto qualquer, pra dois pingos não ficarem iguais
+  m.scale.setScalar(s);
+  scene.add(m);
+  decals.push(m);
+  if (decals.length > 260) scene.remove(decals.shift()); // passou de 260, o mais antigo some
+}
+
+// Efeitos que duram um instante. Cada um tem uma vida em segundos e uma função que muda ele enquanto some.
+const fx = [];
+// O risco do tiro: uma linha da ponta da arma até onde bateu, que some em 8 centésimos de segundo.
+function tracer(a, b, color = INK) {
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: .9 }));
+  scene.add(l);
+  fx.push({ o: l, life: .08, max: .08, upd: (f, k) => { f.o.material.opacity = k * .9; } });
+}
+function updateFx(dt) {
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    f.life -= dt;
+    if (f.life <= 0) { scene.remove(f.o); f.o.geometry.dispose(); fx.splice(i, 1); }
+    else f.upd(f, f.life / f.max); // k vai de 1 (acabou de nascer) até 0 (sumiu)
+  }
+}
+
+// ---------- armas (viewmodel) ----------
+// Viewmodel é o nome do modelo da arma que aparece na frente da câmera em jogo de tiro.
+const hold = new THREE.Group(); // a "mão": tudo que está nela balança e dá coice junto
+vmScene.add(hold);
+const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+// Uma peça da arma: mesma receita das caixas do cenário, só que pequena.
+function vpart(grp, geo, x, y, z, mk = 'light', color = INK) {
+  worldUV(geo, .35);
+  const m = new THREE.Mesh(geo, MAT[mk]);
+  m.position.set(x, y, z);
+  m.add(ink(geo, color, .004));
+  grp.add(m);
+  return m;
+}
+// A pistola: quatro caixas. Os números são metros, e o -z é pra frente.
+const pistola = new THREE.Group();
+vpart(pistola, B(.05, .07, .3), 0, 0, -.12, 'med');             // o ferrolho, a parte de cima
+vpart(pistola, B(.044, .05, .22), 0, -.055, -.1, 'dense');      // o corpo
+vpart(pistola, B(.042, .15, .07), 0, -.13, .0, 'dense');        // o cabo
+vpart(pistola, B(.012, .02, .012), 0, .044, -.25, 'plain', RED); // a massa de mira, vermelha
+hold.add(pistola);
+// O clarão do tiro: uma estrela amarela na ponta do cano, que aparece por um instante.
+const flash = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.translate(64, 64);
+  g.fillStyle = 'rgba(255,214,90,.95)'; g.strokeStyle = '#e08a1e'; g.lineWidth = 3;
+  g.beginPath();
+  for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, r = i % 2 ? 22 : 58; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+  g.closePath(); g.fill(); g.stroke();
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  sp.position.set(0, 0, -.31);
+  sp.scale.setScalar(.16);
+  sp.visible = false;
+  pistola.add(sp);
+  return sp;
+})();
+// Os números da arma. rate é o tempo mínimo entre dois tiros, kick é o coice, spread é o espalhamento.
+const ARMA = { rate: .16, kick: .022, spread: .006, timer: 0 };
+
 // ---------- estado ----------
 // O jogador (P, de player). `pos` é onde estão os pés dele. `yaw` é pra que lado ele está virado
 // e `pitch` o quanto olha pra cima ou pra baixo, os dois em radianos.
@@ -467,6 +573,9 @@ let state = 'menu';
 let noLock = false;
 // As teclas apertadas agora. keys.KeyW é true enquanto o W estiver apertado.
 const keys = {};
+// O botão esquerdo do mouse está apertado? E dois números que vão de 1 a 0 depois de cada tiro:
+// o coice da arma e o tempo do clarão.
+let mouseL = false, recoil = 0, flashT = 0;
 
 // ---------- input ----------
 // O teclado avisa duas vezes: quando a tecla desce e quando sobe. A gente só anota.
@@ -477,7 +586,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 // Se a janela perde o foco com uma tecla apertada, o "soltou" nunca chega. Então solta tudo.
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseL = false; });
 
 // O mouse. Com ele preso, o cursor some e o navegador passa só o quanto ele andou (movementX e movementY).
 addEventListener('mousemove', e => {
@@ -500,14 +609,18 @@ document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement !== canvas && state === 'play' && !noLock) pause();
 });
 document.addEventListener('pointerlockerror', () => { noLock = true; });
-// Clicar no jogo com o mouse solto prende ele de novo.
-canvas.addEventListener('mousedown', () => {
-  if (state === 'play' && !noLock && document.pointerLockElement !== canvas) lockMouse();
+// Clicar no jogo com o mouse solto prende ele de novo. Com ele preso, o botão esquerdo atira.
+canvas.addEventListener('mousedown', e => {
+  if (state !== 'play') return;
+  if (!noLock && document.pointerLockElement !== canvas) { lockMouse(); return; }
+  if (e.button === 0) mouseL = true;
 });
+addEventListener('mouseup', e => { if (e.button === 0) mouseL = false; });
 
 // ---------- telas ----------
 function pause() {
   state = 'paused';
+  mouseL = false;
   $('menu').classList.remove('hidden');
   $('play').textContent = 'CONTINUAR';
 }
@@ -519,9 +632,46 @@ $('play').addEventListener('click', () => {
   lockMouse();
 });
 
+// ---------- tiro ----------
+// O Raycaster é a régua do Three.js: dá um ponto e uma direção, e ele diz em que meshes essa linha bate,
+// do mais perto pro mais longe. Não existe bala voando: o tiro acerta na hora. O nome disso é hitscan.
+const ray = new THREE.Raycaster();
+const _f = new V3(), _r = new V3(), _u = new V3(); // frente, direita e cima da câmera
+function fire() {
+  ARMA.timer = ARMA.rate;
+  recoil = 1;
+  flashT = .06;
+  flash.material.rotation = Math.random() * 6; // cada clarão num ângulo
+  P.pitch += ARMA.kick * rand(.6, 1.1);        // o coice levanta a mira um pouquinho
+  P.yaw += rand(-1, 1) * ARMA.kick * .3;
+
+  // A direção do tiro: pra frente, com um desvio pequeno pros lados e pra cima. Andando, o desvio é maior.
+  camera.updateMatrixWorld();
+  camera.getWorldDirection(_f);
+  _r.setFromMatrixColumn(camera.matrixWorld, 0);
+  _u.setFromMatrixColumn(camera.matrixWorld, 1);
+  const moving = Math.hypot(P.vel.x, P.vel.z) > 1.5;
+  const spread = ARMA.spread * (moving ? 1.7 : 1) * (P.onGround ? 1 : 2);
+  const d = _f.clone().addScaledVector(_r, gauss() * spread).addScaledVector(_u, gauss() * spread).normalize();
+
+  ray.set(camera.position, d);
+  ray.far = 300;
+  const h = ray.intersectObjects(worldMeshes, false)[0]; // a primeira coisa no caminho
+  const end = h ? h.point : camera.position.clone().addScaledVector(d, 150);
+  // O risco sai de um ponto abaixo e à direita do olho, mais ou menos onde a arma está.
+  const muzzle = camera.position.clone().addScaledVector(_f, .7).addScaledVector(_r, .16).addScaledVector(_u, -.12);
+  tracer(muzzle, end);
+  if (h && h.face) {
+    // A normal da face vem no espaço do objeto. O transformDirection passa ela pro espaço do mundo.
+    const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+    addDecal(h.point, n, INK_DOTS[Math.floor(Math.random() * 3)], rand(.14, .26));
+  }
+}
+
 // ---------- update ----------
 // Um passo do jogo. Roda a cada foto, enquanto o estado for 'play'.
 const FWD = new V3(), RIGHT = new V3();
+let bobT = 0; // o relógio do balanço da arma: só anda quando o jogador anda
 function update(dt) {
   // Pra onde é "frente" e "direita" depende de pra onde o jogador está virado.
   // O seno e o cosseno do yaw dão essas duas direções, deitadas no chão.
@@ -574,6 +724,21 @@ function update(dt) {
   // A câmera fica na altura dos olhos, 1,62 acima dos pés.
   camera.position.set(P.pos.x, P.pos.y + 1.62, P.pos.z);
   camera.rotation.set(P.pitch, P.yaw, 0);
+
+  // A arma: enquanto o botão estiver apertado, atira sempre que o tempo entre dois tiros já passou.
+  ARMA.timer -= dt;
+  if (mouseL && ARMA.timer <= 0) fire();
+  updateFx(dt);
+  // O coice e o clarão vão sumindo sozinhos.
+  recoil = Math.max(0, recoil - dt * 9);
+  flashT -= dt;
+  flash.visible = flashT > 0;
+  // Onde a arma fica na tela: embaixo, à direita. Andando ela balança (o seno e o cosseno fazem um oito),
+  // e no coice ela vem pra trás e levanta o cano.
+  const hsp = Math.hypot(P.vel.x, P.vel.z);
+  if (P.onGround && hsp > .5) bobT += dt * hsp * 1.6;
+  hold.position.set(.17 + Math.cos(bobT) * .006, -.17 - Math.abs(Math.sin(bobT)) * .008, -.42 + recoil * .05);
+  hold.rotation.set(recoil * .16, 0, 0);
 }
 
 // ---------- loop ----------
@@ -600,7 +765,11 @@ function loop(now) {
     camera.lookAt(0, 4, 0);
   }
 
+  // Duas fotos por pintura. Primeiro limpa tudo e pinta o mundo.
+  renderer.clear();
   renderer.render(scene, camera);
+  // Depois limpa só a profundidade (quem está na frente de quem) e pinta a arma por cima.
+  if (state !== 'menu') { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
 }
 requestAnimationFrame(loop);
 })();
