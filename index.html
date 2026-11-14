@@ -15,16 +15,23 @@
 <!-- Duas camadas por cima do jogo: as linhas da folha de caderno e o grão do papel. -->
 <div id="paper"></div>
 <div id="grain"></div>
-<!-- O HUD é tudo que fica por cima do jogo enquanto você joga. Por enquanto, só a mira. -->
+<!-- O HUD é tudo que fica por cima do jogo enquanto você joga: pontos, onda, vida, mira e avisos. -->
 <div id="hud" class="hidden">
+  <div id="score" class="hand">PONTOS <b id="scoreV">0</b></div>
+  <div id="waveBox"><div id="waveV" class="hand">ONDA 1</div><div id="leftV"></div><div id="nextV" class="red"></div></div>
+  <div id="hpBox"><span>HP</span><div id="hpBar"><div id="hpFill" style="width:100%"></div></div><span id="hpV">100</span></div>
   <div id="cross"><div class="dot"></div></div>
+  <div id="hitm"><i style="transform:rotate(45deg) translate(9px)"></i><i style="transform:rotate(135deg) translate(9px)"></i><i style="transform:rotate(225deg) translate(9px)"></i><i style="transform:rotate(315deg) translate(9px)"></i></div>
+  <div id="banner"><div id="bT" class="hand"></div><div id="bS"></div></div>
 </div>
+<div id="vig"></div>
 <!-- O menu. O botão JOGAR prende o mouse na tela e começa o jogo. -->
 <div id="menu">
   <div class="card">
     <h1>RABISCO <span>CITY</span></h1>
-    <div class="sub">uma cidade desenhada à caneta na folha do caderno</div>
+    <div class="sub">um tiroteio desenhado à caneta na folha do caderno</div>
     <div id="menuBody">
+      Os bonecos de palito fugiram das margens e invadiram a cidade debaixo da cúpula. Sobreviva às ondas e apague todos eles.
       <div class="keys">
         <span>WASD</span><span>andar · Shift corre · Espaço pula</span>
         <span>mouse</span><span>olhar em volta · clique atira</span>

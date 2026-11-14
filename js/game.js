@@ -1,5 +1,6 @@
-// RABISCO CITY, etapa 7: o som.
-// Nenhum arquivo de áudio: cada som é fabricado na hora, com chiado e apito, pela Web Audio do navegador.
+// RABISCO CITY, etapa 8: os inimigos e as ondas.
+// Bonecos de palito nascem na beira da cidade e vêm atrás de você. Agora dá pra ganhar ponto, apanhar e perder:
+// com isso, a cidade vira um jogo.
 (() => {
 'use strict';
 
@@ -490,6 +491,8 @@ function splatTex(color) {
 // polygonOffset negativo: puxa o pingo um fio pra frente da parede, pra ele não brigar com ela.
 const decalMat = t => new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
 const INK_DOTS = [0, 1, 2].map(() => decalMat(splatTex('#2a3fb0'))); // três desenhos diferentes
+// As manchas vermelhas que ficam no chão quando um boneco é apagado.
+const RED_SPLATS = [0, 1, 2, 3].map(i => decalMat(splatTex(i % 2 ? '#c81f33' : '#d42a3a')));
 const decalGeo = new THREE.PlaneGeometry(1, 1);
 const decals = [];
 // Cola um pingo no ponto p de uma superfície. n é a normal: a direção pra onde a superfície olha.
@@ -579,6 +582,10 @@ const SFX = {
   draw: () => sNoise(.07, rand(2200, 3600), 3, .07, 'bandpass'),
   // Cair de uma altura.
   land: () => { sTone(90, 40, .15, .4, 'sine'); sNoise(.1, 600, 1, .3); },
+  head: () => sTone(1500, 1100, .08, .14, 'triangle'), // tiro na cabeça
+  kill: () => { sNoise(.28, 450, 1, .55); sTone(240, 70, .22, .2, 'triangle'); sTone(900, 300, .12, .08, 'square', .05); },
+  hurt: () => sTone(210, 80, .25, .32, 'sawtooth'),    // você apanhou
+  wave: () => { sTone(300, 300, .15, .15, 'triangle'); sTone(450, 450, .15, .15, 'triangle', .15); sTone(600, 600, .3, .15, 'triangle', .3); },
 };
 
 // ---------- armas (viewmodel) ----------
@@ -619,13 +626,14 @@ const flash = (() => {
   pistola.add(sp);
   return sp;
 })();
-// Os números da arma. rate é o tempo mínimo entre dois tiros, kick é o coice, spread é o espalhamento.
-const ARMA = { rate: .16, kick: .022, spread: .006, timer: 0 };
+// Os números da arma. rate é o tempo mínimo entre dois tiros, kick é o coice, spread é o espalhamento
+// e dmg é quanto de vida cada tiro tira.
+const ARMA = { rate: .16, kick: .022, spread: .006, dmg: 24, timer: 0 };
 
 // ---------- estado ----------
 // O jogador (P, de player). `pos` é onde estão os pés dele. `yaw` é pra que lado ele está virado
 // e `pitch` o quanto olha pra cima ou pra baixo, os dois em radianos.
-const P = { pos: new V3(0, 0, 5), vel: new V3(), vy: 0, onGround: true, yaw: 0, pitch: 0 };
+const P = { pos: new V3(0, 0, 5), vel: new V3(), vy: 0, onGround: true, hp: 100, yaw: 0, pitch: 0 };
 // 'menu' antes de começar, 'play' jogando, 'paused' com o mouse solto.
 let state = 'menu';
 // Se o navegador não deixar prender o mouse, o jogo funciona mesmo assim, com o mouse solto.
@@ -635,6 +643,218 @@ const keys = {};
 // O botão esquerdo do mouse está apertado? E dois números que vão de 1 a 0 depois de cada tiro:
 // o coice da arma e o tempo do clarão.
 let mouseL = false, recoil = 0, flashT = 0;
+// A partida: os pontos, a onda atual, quantos inimigos ainda vão nascer nela, o tempo até o próximo nascer,
+// o intervalo entre duas ondas, quantos você apagou, e o brilho da borda vermelha.
+let score = 0, wave = 0, toSpawn = 0, spawnT = 0, inter = 0, kills = 0, vigT = 0;
+const enemies = []; // os bonecos vivos
+const dying = [];   // os que estão caindo, já apagados
+
+// ---------- inimigos: bonecos de palito ----------
+// Os números do inimigo: vida, velocidade, quanto tira por soco, de que distância alcança,
+// quanto vale em pontos e o intervalo entre dois socos.
+const GRUNT = { hp: 45, speed: 5, dmg: 10, reach: 1.7, score: 100, cd: 1.0 };
+// Os lugares onde eles nascem: 24 pontos na beira da cidade, no fim das ruas.
+const SPAWNS = [];
+for (const t of [-50, -30, -10, 10, 30, 50]) SPAWNS.push([-52, t], [52, t], [t, -52], [t, 52]);
+const eyeMat = new THREE.MeshBasicMaterial({ color: RED });
+const paperMat = new THREE.MeshBasicMaterial({ color: PAPER, side: THREE.DoubleSide });
+// O material das caixas de acerto: invisível. Elas existem só pra o raio do tiro bater nelas.
+const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+
+// Um membro do boneco: um palito que gira em volta da ponta de cima.
+// O grupo (pivot) fica na junta, e o cilindro pende dele pra baixo. Girar o grupo balança o palito,
+// como um braço balança no ombro. `end` marca a ponta de baixo: é onde o próximo palito se prende.
+function limb(parent, len, th, mat, x, y, z) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, z);
+  parent.add(pivot);
+  const cg = new THREE.CylinderGeometry(th, th * .85, len, 6);
+  cg.translate(0, -len / 2, 0); // o topo do cilindro fica na junta
+  pivot.add(new THREE.Mesh(cg, mat));
+  const end = new THREE.Group();
+  end.position.y = -len;
+  pivot.add(end);
+  pivot.userData.end = end;
+  return pivot;
+}
+
+function makeEnemy(x, z) {
+  const g = new THREE.Group(), th = .05, hipY = .95; // th é a grossura do traço, hipY a altura do quadril
+  // Cada boneco tem o seu material, porque ele pisca de vermelho sozinho quando leva um tiro.
+  const mat = new THREE.MeshBasicMaterial({ color: INK });
+  // A vida cresce 8% por onda.
+  const e = { g, mat, hp: GRUNT.hp * (1 + (wave - 1) * .08), cd: rand(.6, 1.4), walk: rand(0, 6), flash: 0, parts: [], legs: [], shins: [], arms: [], dead: false };
+  const body = new THREE.Group(); // tronco, braços e cabeça: tudo que fica do quadril pra cima
+  body.position.y = hipY;
+  g.add(body);
+  e.body = body;
+  for (const s of [-1, 1]) { // -1 é o lado esquerdo, 1 o direito
+    const coxa = limb(g, .48, th, mat, s * .07, hipY, 0);
+    e.legs.push(coxa);
+    e.shins.push(limb(coxa.userData.end, .48, th * .9, mat, 0, 0, 0)); // a canela se prende no joelho
+  }
+  limb(body, .64, th * 1.15, mat, 0, .64, 0); // o tronco
+  for (const s of [-1, 1]) {
+    const braco = limb(body, .37, th * .9, mat, 0, .56, 0);
+    braco.rotation.z = s * .45; // aberto pro lado
+    e.arms.push(braco);
+    limb(braco.userData.end, .35, th * .85, mat, 0, 0, 0).rotation.x = -.5; // o antebraço, dobrado pra frente
+  }
+  // A cabeça: um disco de papel, um anel de tinta, dois olhos vermelhos, sobrancelhas bravas e uma boca.
+  const hr = .25;
+  const head = new THREE.Group();
+  head.position.y = .64 + hr + .03;
+  body.add(head);
+  e.head = head;
+  head.add(new THREE.Mesh(new THREE.CircleGeometry(hr, 24), paperMat));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(hr, th * .85, 6, 28), mat);
+  ring.position.z = .005;
+  head.add(ring);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.CircleGeometry(.05, 12), eyeMat);
+    eye.position.set(s * .09, .03, .015);
+    head.add(eye);
+    const brow = new THREE.Mesh(new THREE.PlaneGeometry(.12, .026), mat);
+    brow.position.set(s * .09, .115, .015);
+    brow.rotation.z = -s * .45;
+    head.add(brow);
+  }
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(.075, .014, 4, 12, Math.PI), mat);
+  mouth.position.set(0, -.17, .015);
+  head.add(mouth);
+  // As caixas de acerto. Acertar um palito fino seria difícil demais, então o tiro bate nestas três
+  // formas invisíveis: o tronco, a cabeça e as pernas. Cada uma sabe de quem é, e se é a cabeça.
+  const hb = (geo, parent, y, isHead) => {
+    const m = new THREE.Mesh(geo, hitMat);
+    m.position.y = y;
+    m.userData.enemy = e;
+    m.userData.head = isHead;
+    parent.add(m);
+    e.parts.push(m);
+  };
+  hb(new THREE.BoxGeometry(.46, .72, .34), body, .32, false);
+  hb(new THREE.SphereGeometry(hr + .07, 8, 6), head, 0, true);
+  hb(new THREE.BoxGeometry(.42, hipY, .32), g, hipY / 2, false);
+  g.position.set(x, 0, z);
+  scene.add(g);
+  enemies.push(e);
+  hitDirty = true;
+  return e;
+}
+// Nasce num ponto da beira que esteja a mais de 25 metros do jogador.
+function spawnEnemy() {
+  let s;
+  for (let i = 0; i < 20; i++) {
+    s = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
+    if (Math.hypot(s[0] - P.pos.x, s[1] - P.pos.z) > 25) break;
+  }
+  makeEnemy(s[0] + rand(-1, 1), s[1] + rand(-1, 1));
+}
+// O X que pisca na mira.
+let hitmT = 0;
+function hitMarker(kill) {
+  $('hitm').className = kill ? 'kill' : '';
+  $('hitm').style.opacity = 1;
+  hitmT = kill ? .25 : .12;
+}
+// Um tiro acertou o boneco e. `head` diz se foi na cabeça, `dir` é a direção de onde veio o tiro.
+function hurtEnemy(e, dmg, head, dir) {
+  if (e.dead) return;
+  e.hp -= dmg;
+  e.flash = .12; // pisca de vermelho por um instante
+  if (head) SFX.head(); else SFX.hit();
+  if (e.hp > 0) { hitMarker(false); return; }
+  // Apagado: sai da lista dos vivos e entra na dos que estão caindo.
+  e.dead = true;
+  enemies.splice(enemies.indexOf(e), 1);
+  hitDirty = true;
+  kills++;
+  score += GRUNT.score * (head ? 2 : 1); // na cabeça vale o dobro
+  SFX.kill();
+  hitMarker(true);
+  // Uma mancha vermelha no chão, onde ele estava.
+  addDecal(new V3(e.g.position.x, .01, e.g.position.z), new V3(0, 1, 0), RED_SPLATS[Math.floor(Math.random() * 4)], rand(1.2, 2));
+  // Ele cai pra trás, pro lado contrário de onde veio o tiro. `ax` é o eixo em volta do qual ele tomba.
+  dying.push({ o: e.g, t: 0, ax: new V3(dir.z, 0, -dir.x).normalize() });
+}
+function damagePlayer(d) {
+  if (state !== 'play') return;
+  P.hp -= d;
+  vigT = 1;
+  SFX.hurt();
+  if (P.hp <= 0) { P.hp = 0; gameOver(); }
+}
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    const p = e.g.position;
+    const dx = P.pos.x - p.x, dz = P.pos.z - p.z, d = Math.hypot(dx, dz) || 1;
+    // A inteligência dele é uma linha: anda reto na direção do jogador. Quando chega perto o bastante, para.
+    const perto = d < GRUNT.reach * .8;
+    if (!perto) {
+      p.x += dx / d * GRUNT.speed * dt;
+      p.z += dz / d * GRUNT.speed * dt;
+    }
+    // Os mesmos colisores do jogador: ele esbarra nos prédios e escorrega pela parede até achar a esquina.
+    pushOut(p, .35, p.y, 1.7);
+    p.y = groundAt(p.x, p.z, p.y, .3);
+    // Um boneco não entra no outro: se dois estão colados, este se afasta um pouco.
+    for (const o of enemies) {
+      if (o === e) continue;
+      const ox = p.x - o.g.position.x, oz = p.z - o.g.position.z, od = Math.hypot(ox, oz);
+      if (od < .7 && od > 1e-4) { p.x += ox / od * (.7 - od) * .5; p.z += oz / od * (.7 - od) * .5; }
+    }
+    // Ele sempre olha pro jogador. O atan2 transforma uma direção (dx, dz) num ângulo.
+    e.g.rotation.y = Math.atan2(dx, dz);
+    // A caminhada: as pernas e os braços balançam com um seno, um lado ao contrário do outro.
+    // Parado, o balanço diminui até zerar.
+    e.walk += dt * (perto ? 2 : 9);
+    const amp = perto ? .08 : .7;
+    for (let i = 0; i < 2; i++) {
+      const sw = Math.sin(e.walk + i * Math.PI);
+      e.legs[i].rotation.x = sw * amp;
+      e.shins[i].rotation.x = Math.max(0, -sw) * amp * 1.2; // o joelho só dobra pra trás
+      e.arms[i].rotation.x = -sw * amp * .8;
+    }
+    e.body.position.y = .95 + Math.abs(Math.sin(e.walk)) * .04; // o corpo sobe e desce um tiquinho a cada passo
+    // O soco: perto do jogador, de tempos em tempos, tira vida.
+    e.cd -= dt;
+    if (d < GRUNT.reach && Math.abs(P.pos.y - p.y) < 2 && e.cd <= 0) {
+      e.cd = GRUNT.cd;
+      e.arms[1].rotation.x = -1.6; // levanta o braço na hora do soco
+      damagePlayer(GRUNT.dmg);
+    }
+    // O pisca vermelho de quem levou tiro.
+    if (e.flash > 0) { e.flash -= dt; e.mat.color.setHex(e.flash > 0 ? RED : INK); }
+  }
+  // Os apagados tombam em meio segundo, afundam no chão e somem.
+  for (let i = dying.length - 1; i >= 0; i--) {
+    const d = dying[i];
+    d.t += dt;
+    d.o.setRotationFromAxisAngle(d.ax, Math.min(1, d.t / .5) * Math.PI / 2);
+    if (d.t > 1.2) d.o.position.y -= dt * .8;
+    if (d.t > 2.2) { scene.remove(d.o); dying.splice(i, 1); }
+  }
+}
+
+// ---------- HUD ----------
+let bannerT = 0;
+function banner(t, s, dur = 2.6) {
+  $('bT').textContent = t;
+  $('bS').textContent = s || '';
+  $('banner').style.opacity = 1;
+  bannerT = dur;
+}
+// Copia os números do jogo pra página. O jogo não desenha texto: quem desenha é o HTML.
+function updateHUD() {
+  $('scoreV').textContent = score;
+  $('waveV').textContent = 'ONDA ' + Math.max(1, wave);
+  const left = enemies.length + toSpawn;
+  $('leftV').textContent = left + (left === 1 ? ' inimigo restante' : ' inimigos restantes');
+  $('nextV').textContent = inter > 0 ? 'próxima onda em ' + Math.ceil(inter) : '';
+  $('hpV').textContent = Math.ceil(P.hp);
+  $('hpFill').style.width = Math.max(0, P.hp) + '%';
+  $('hpBox').className = P.hp < 30 ? 'low' : '';
+}
 
 // ---------- input ----------
 // O teclado avisa duas vezes: quando a tecla desce e quando sobe. A gente só anota.
@@ -677,16 +897,46 @@ canvas.addEventListener('mousedown', e => {
 addEventListener('mouseup', e => { if (e.button === 0) mouseL = false; });
 
 // ---------- telas ----------
+// Troca o que está escrito no cartão do menu e mostra ele.
+const menuBodyStart = $('menuBody').innerHTML;
+function showMenu(title, body, btn) {
+  $('menu').classList.remove('hidden');
+  $('menu').querySelector('h1').innerHTML = title;
+  $('menuBody').innerHTML = body;
+  $('play').textContent = btn;
+}
 function pause() {
   state = 'paused';
   mouseL = false;
-  $('menu').classList.remove('hidden');
-  $('play').textContent = 'CONTINUAR';
+  showMenu('PAUSA<span>.</span>', `<b>onda ${wave}</b> · ${score} pontos · ${kills} rabiscos apagados<br>Respira. A caneta espera.`, 'CONTINUAR');
+}
+function gameOver() {
+  state = 'dead';
+  mouseL = false;
+  try { document.exitPointerLock(); } catch (e) { }
+  $('vig').style.opacity = .9;
+  setTimeout(() => showMenu('VOCÊ FOI <span>APAGADO</span>', `Chegou até a <b>onda ${wave}</b> com <b>${score}</b> pontos e <b>${kills}</b> rabiscos apagados.<br>Vira a página e tenta de novo.`, 'DE NOVO'), 700);
+}
+// Uma partida nova: tira da cena tudo que sobrou da anterior e zera os números.
+function newGame() {
+  for (const e of enemies) scene.remove(e.g);
+  enemies.length = 0;
+  for (const d of dying) scene.remove(d.o);
+  dying.length = 0;
+  for (const d of decals) scene.remove(d);
+  decals.length = 0;
+  hitDirty = true;
+  P.pos.set(0, 0, 5); P.vel.set(0, 0, 0); P.vy = 0; P.hp = 100; P.yaw = 0; P.pitch = 0;
+  score = 0; wave = 0; toSpawn = 0; kills = 0;
+  inter = 4; // a primeira onda começa em 4 segundos
+  banner('PREPARA A CANETA', 'eles estão chegando', 3);
 }
 // O navegador só deixa prender o mouse em resposta a um clique. Por isso o jogo começa num botão.
 $('play').addEventListener('click', () => {
   initAudio();
+  if (state === 'menu' || state === 'dead') newGame();
   state = 'play';
+  $('vig').style.opacity = 0;
   $('menu').classList.add('hidden');
   $('hud').classList.remove('hidden');
   lockMouse();
@@ -696,6 +946,14 @@ $('play').addEventListener('click', () => {
 // O Raycaster é a régua do Three.js: dá um ponto e uma direção, e ele diz em que meshes essa linha bate,
 // do mais perto pro mais longe. Não existe bala voando: o tiro acerta na hora. O nome disso é hitscan.
 const ray = new THREE.Raycaster();
+// Tudo em que um tiro pode bater: o cenário e as caixas de acerto dos inimigos vivos.
+// A lista só é refeita quando um inimigo nasce ou morre (hitDirty), e não a cada tiro.
+let hitList = [], hitDirty = true;
+function rebuildHitList() {
+  hitList = worldMeshes.slice();
+  for (const e of enemies) for (const p of e.parts) hitList.push(p);
+  hitDirty = false;
+}
 const _f = new V3(), _r = new V3(), _u = new V3(); // frente, direita e cima da câmera
 function fire() {
   ARMA.timer = ARMA.rate;
@@ -717,12 +975,16 @@ function fire() {
 
   ray.set(camera.position, d);
   ray.far = 300;
-  const h = ray.intersectObjects(worldMeshes, false)[0]; // a primeira coisa no caminho
+  if (hitDirty) rebuildHitList();
+  const h = ray.intersectObjects(hitList, false)[0]; // a primeira coisa no caminho
   const end = h ? h.point : camera.position.clone().addScaledVector(d, 150);
   // O risco sai de um ponto abaixo e à direita do olho, mais ou menos onde a arma está.
   const muzzle = camera.position.clone().addScaledVector(_f, .7).addScaledVector(_r, .16).addScaledVector(_u, -.12);
   tracer(muzzle, end);
-  if (h && h.face) {
+  // Bateu numa caixa de acerto? Então é um inimigo. Na cabeça o estrago é o dobro.
+  if (h && h.object.userData.enemy) {
+    hurtEnemy(h.object.userData.enemy, ARMA.dmg * (h.object.userData.head ? 2 : 1), h.object.userData.head, d);
+  } else if (h && h.face) {
     // A normal da face vem no espaço do objeto. O transformDirection passa ela pro espaço do mundo.
     const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
     addDecal(h.point, n, INK_DOTS[Math.floor(Math.random() * 3)], rand(.14, .26));
@@ -735,6 +997,27 @@ function fire() {
 const FWD = new V3(), RIGHT = new V3();
 let bobT = 0; // o relógio do balanço da arma: só anda quando o jogador anda
 function update(dt) {
+  // As ondas. São três momentos: o intervalo antes da onda, a onda soltando inimigos, e a espera até o último cair.
+  if (inter > 0) {
+    inter -= dt;
+    if (inter <= 0) {
+      wave++;
+      toSpawn = 4 + wave * 3; // cada onda tem três inimigos a mais que a anterior
+      spawnT = .5;
+      banner('ONDA ' + wave, wave === 1 ? 'apaga eles antes que te apaguem' : 'eles voltaram com mais tinta');
+      SFX.wave();
+    }
+  } else if (toSpawn > 0) {
+    spawnT -= dt;
+    // No máximo 16 vivos de uma vez. O intervalo entre um e outro encolhe a cada onda.
+    if (spawnT <= 0 && enemies.length < 16) { spawnEnemy(); toSpawn--; spawnT = Math.max(.35, 1.3 - wave * .08); }
+  } else if (enemies.length === 0 && wave > 0) {
+    score += 200 * wave; // o bônus por limpar a onda
+    inter = 6;
+    P.hp = Math.min(100, P.hp + 25); // e um respiro: recupera um pouco de vida
+    banner('ONDA ' + wave + ' LIMPA', 'respira');
+  }
+
   // Pra onde é "frente" e "direita" depende de pra onde o jogador está virado.
   // O seno e o cosseno do yaw dão essas duas direções, deitadas no chão.
   FWD.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
@@ -794,6 +1077,12 @@ function update(dt) {
   ARMA.timer -= dt;
   if (mouseL && ARMA.timer <= 0) fire();
   updateFx(dt);
+  updateEnemies(dt);
+  // Os avisos da tela vão apagando: o aviso grande, o X da mira e a borda vermelha.
+  if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
+  if (hitmT > 0) { hitmT -= dt; if (hitmT <= 0) $('hitm').style.opacity = 0; }
+  if (state === 'play') { vigT = Math.max(0, vigT - dt * 1.6); $('vig').style.opacity = vigT * .8 + (P.hp < 30 ? .3 : 0); }
+  updateHUD();
   // O coice e o clarão vão sumindo sozinhos.
   recoil = Math.max(0, recoil - dt * 9);
   flashT -= dt;
