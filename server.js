@@ -21,7 +21,7 @@ const ARQUIVO = path.join(RAIZ, 'dados', 'placar.json');
 function lePlacar() {
   try {
     const lista = JSON.parse(fs.readFileSync(ARQUIVO, 'utf8')); // JSON.parse: de texto pra objeto
-    return Array.isArray(lista) ? lista : [];
+    return Array.isArray(lista) ? lista.filter(l => typeof l === 'object' && l !== null && Number.isFinite(l.pontos)) : [];
   } catch (erro) {
     return [];
   }
@@ -72,7 +72,12 @@ function api(req, res) {
       const lista = lePlacar();
       lista.push(linha);
       lista.sort((a, b) => b.pontos - a.pontos);
-      gravaPlacar(lista.slice(0, 100));
+      try {
+        gravaPlacar(lista.slice(0, 100));
+      } catch (erro) { // disco cheio, arquivo travado... o servidor avisa e continua de pé
+        console.error(erro);
+        return respondeJson(res, 500, { erro: 'Não consegui gravar o placar.' });
+      }
       respondeJson(res, 201, { posicao: lista.indexOf(linha) + 1, melhores: lista.slice(0, 10) });
     });
     return;
@@ -84,24 +89,33 @@ function api(req, res) {
 // ---------- os arquivos do jogo ----------
 // O navegador precisa saber que tipo de arquivo está recebendo. Isso vai no cabeçalho Content-Type.
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.ico': 'image/x-icon' };
-// Só estas pastas e arquivos são entregues. O resto do disco (e o próprio placar.json) fica de fora.
-const PUBLICOS = ['/index.html', '/css/', '/js/'];
+// Só o index.html e estas pastas são entregues. O resto do disco (e o próprio placar.json) fica de fora.
+const PASTAS = ['css', 'js'];
+
+function responde(res, status, texto) {
+  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end(texto);
+}
+// Do endereço pedido pro arquivo no disco. Devolve null se o pedido não pode ser atendido.
+// Aqui mora um ataque clássico: pedir /css/../server.js pra sair da pasta e ler o que não devia.
+// E ele vem disfarçado: %2f é uma barra e %5c é uma barra invertida, escritas em código.
+function caminhoDoArquivo(endereco) {
+  let caminho = decodeURIComponent(endereco.split('?')[0]); // tira o disfarce ANTES de conferir
+  if (caminho === '/') caminho = '/index.html';
+  if (caminho.includes('\0') || caminho.includes('\\') || caminho.split('/').includes('..')) return null;
+  const inteiro = path.join(RAIZ, caminho);
+  // Confere pelo caminho final, já resolvido: tem que ser o index.html ou estar dentro de uma das pastas.
+  const partes = path.relative(RAIZ, inteiro).split(path.sep);
+  const permitido = (partes.length === 1 && partes[0] === 'index.html') || (partes.length > 1 && PASTAS.includes(partes[0]));
+  return permitido ? inteiro : null;
+}
 
 function arquivo(req, res) {
-  let caminho = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  if (caminho === '/') caminho = '/index.html';
-  const inteiro = path.normalize(path.join(RAIZ, caminho));
-  const permitido = PUBLICOS.some(p => caminho === p || (p.endsWith('/') && caminho.startsWith(p)));
-  // O startsWith barra pedidos espertinhos como /css/../../segredo.txt
-  if (!permitido || !inteiro.startsWith(RAIZ + path.sep)) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    return res.end('404: não achei');
-  }
+  let inteiro;
+  try { inteiro = caminhoDoArquivo(req.url); } catch (erro) { return responde(res, 400, '400: endereço estranho'); }
+  if (!inteiro) return responde(res, 404, '404: não achei');
   fs.readFile(inteiro, (erro, conteudo) => {
-    if (erro) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return res.end('404: não achei');
-    }
+    if (erro) return responde(res, 404, '404: não achei');
     res.writeHead(200, { 'Content-Type': TIPOS[path.extname(inteiro)] || 'application/octet-stream' });
     res.end(conteudo);
   });
@@ -109,11 +123,15 @@ function arquivo(req, res) {
 
 // ---------- liga o servidor ----------
 // Cada pedido que chega cai nesta função. O endereço decide quem responde.
+// O try segura qualquer erro inesperado: o pedido ruim recebe uma resposta de erro, e o servidor continua de pé.
+// 127.0.0.1 quer dizer "só este computador": ninguém na mesma rede Wi-Fi consegue abrir o seu servidor.
 http.createServer((req, res) => {
-  if (req.url.split('?')[0] === '/api/placar') return api(req, res);
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
-    return res.end('405: só GET');
+  try {
+    if (req.url.split('?')[0] === '/api/placar') return api(req, res);
+    if (req.method !== 'GET' && req.method !== 'HEAD') return responde(res, 405, '405: só GET');
+    arquivo(req, res);
+  } catch (erro) {
+    console.error(erro);
+    if (!res.headersSent) responde(res, 500, '500: deu erro aqui no servidor');
   }
-  arquivo(req, res);
-}).listen(PORTA, () => console.log(`Rabisco City em http://localhost:${PORTA}`));
+}).listen(PORTA, '127.0.0.1', () => console.log(`Rabisco City em http://localhost:${PORTA}`));
