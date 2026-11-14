@@ -68,6 +68,10 @@ O que fica guardado é um JSON com as 100 melhores linhas e os bilhetes já usad
 
 Cada boneco nasce com um nome (`BOT Zé`, `BOT Borrão`...). Quando alguém é apagado, aparece uma linha no canto de cima, como no CS: quem apagou, a arma, e quem foi apagado. Tiro na cabeça ganha uma marca, e a linha dos seus abates tem a borda vermelha. Quando é um bot que apaga você, a linha mostra o nome dele e o golpe (`SOCO`, `PANCADA`, `CUSPE`).
 
+## Mira
+
+Quatro riscos em cruz, como no CS. O vão no meio mostra o quanto o tiro vai espalhar: abre quando você anda, pula ou atira, e fecha quando você para ou mira com o botão direito. A conta é a mesma que o tiro usa.
+
 ## Bonecos que escalam
 
 Subir num prédio não salva mais ninguém. Quando você está em cima de um prédio, os bonecos que chegam na parede dele sobem com pés e mãos, pulam pra cima do teto e continuam atrás de você. Se você desce, eles param de escalar e voltam a desviar dos prédios como sempre. Quem cospe não escala: fica no chão, cuspindo pra cima.
@@ -98,6 +102,7 @@ index.html      HUD, menu e carregamento do Three.js
 css/style.css   visual do HUD e da folha de caderno
 js/game.js      o jogo inteiro (mundo, armas, inimigos, gancho, som, placar)
 js/abates.js    o feed de abates no canto: quem apagou quem, e com qual arma
+js/mira.js      o tamanho do vão da mira e o espalhamento do tiro
 js/escalada.js  em cima de qual prédio o jogador está (é o que faz os bonecos escalarem)
 lib/placar.js   as regras do placar (conferir, ordenar, bilhete assinado)
 server.js       servidor local: arquivos do jogo + API do placar num arquivo JSON

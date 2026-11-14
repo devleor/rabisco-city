@@ -923,13 +923,13 @@ function buildRegua() {
   return g;
 }
 const WEAPONS = [
-  { id: 'uzi', name: 'UZI', desc: 'rajada · botão direito mira na red dot', dmg: 15, rate: .062, magSize: 32, reserveMax: 256, spread: .022, pellets: 1, reload: 1.4, auto: true, kick: .008, build: buildUzi, muzzle: new V3(0, .012, -.33), ring: 24, ads: { pos: new V3(0, -.115, -.36), fov: 52 }, bullet: 'uzi', fl: .14, casing: 'small' },
-  { id: 'escopeta', name: 'ESCOPETA', desc: 'de perto apaga tudo · BOOM', dmg: 13, rate: .85, magSize: 6, reserveMax: 42, spread: .075, pellets: 10, reload: 2.0, kick: .06, build: buildEscopeta, muzzle: new V3(0, .035, -.8), ring: 56, bullet: 'pellet', fl: .3, casing: 'shell', boom: 'BOOM!', action: 'pump' },
-  { id: 'sniper', name: 'SNIPER', desc: 'ferrolho · atravessa tudo · BLAM', dmg: 170, rate: 1.3, magSize: 5, reserveMax: 30, spread: .03, pellets: 1, reload: 2.4, kick: .12, zoom: true, pierce: true, build: buildSniper, muzzle: new V3(0, .015, -1.07), ring: 10, bullet: 'sniper', fl: .55, casing: 'big', boom: 'BLAM!', action: 'bolt' },
-  { id: 'ak', name: 'AK-47', desc: 'fuzil automático · botão direito mira na massa', dmg: 25, rate: .1, magSize: 30, reserveMax: 210, spread: .018, pellets: 1, reload: 1.9, auto: true, kick: .016, build: buildAK, muzzle: new V3(0, .02, -.71), ring: 22, ads: { pos: new V3(0, -.092, -.42), fov: 58 }, bullet: 'rifle', fl: .2, casing: 'small' },
-  { id: 'pistola', name: 'PISTOLA', desc: 'semi · forte e precisa · PAH', dmg: 48, rate: .26, magSize: 7, reserveMax: 63, spread: .008, pellets: 1, reload: 1.3, kick: .05, build: buildPistola, muzzle: new V3(0, .03, -.23), ring: 14, ads: { pos: new V3(0, -.079, -.36), fov: 62 }, bullet: 'pistol', fl: .22, casing: 'small', boom: 'PAH!', slide: true },
-  { id: 'bazuca', name: 'BAZUCA', desc: 'foguete · explode tudo em volta · KABOOM', dmg: 220, rate: 1.2, magSize: 1, reserveMax: 10, spread: .004, pellets: 1, reload: 2.1, kick: .09, build: buildBazuca, muzzle: new V3(0, .02, -.8), ring: 30, fl: .5, rocket: true },
-  { id: 'regua', name: 'RÉGUA', desc: 'corpo a corpo · voando no gancho corta mais', dmg: 80, rate: .5, melee: true, range: 2.9, build: buildRegua, ring: 0 },
+  { id: 'uzi', name: 'UZI', desc: 'rajada · botão direito mira na red dot', dmg: 15, rate: .062, magSize: 32, reserveMax: 256, spread: .022, pellets: 1, reload: 1.4, auto: true, kick: .008, build: buildUzi, muzzle: new V3(0, .012, -.33), ads: { pos: new V3(0, -.115, -.36), fov: 52 }, bullet: 'uzi', fl: .14, casing: 'small' },
+  { id: 'escopeta', name: 'ESCOPETA', desc: 'de perto apaga tudo · BOOM', dmg: 13, rate: .85, magSize: 6, reserveMax: 42, spread: .075, pellets: 10, reload: 2.0, kick: .06, build: buildEscopeta, muzzle: new V3(0, .035, -.8), bullet: 'pellet', fl: .3, casing: 'shell', boom: 'BOOM!', action: 'pump' },
+  { id: 'sniper', name: 'SNIPER', desc: 'ferrolho · atravessa tudo · BLAM', dmg: 170, rate: 1.3, magSize: 5, reserveMax: 30, spread: .03, pellets: 1, reload: 2.4, kick: .12, zoom: true, pierce: true, build: buildSniper, muzzle: new V3(0, .015, -1.07), bullet: 'sniper', fl: .55, casing: 'big', boom: 'BLAM!', action: 'bolt' },
+  { id: 'ak', name: 'AK-47', desc: 'fuzil automático · botão direito mira na massa', dmg: 25, rate: .1, magSize: 30, reserveMax: 210, spread: .018, pellets: 1, reload: 1.9, auto: true, kick: .016, build: buildAK, muzzle: new V3(0, .02, -.71), ads: { pos: new V3(0, -.092, -.42), fov: 58 }, bullet: 'rifle', fl: .2, casing: 'small' },
+  { id: 'pistola', name: 'PISTOLA', desc: 'semi · forte e precisa · PAH', dmg: 48, rate: .26, magSize: 7, reserveMax: 63, spread: .008, pellets: 1, reload: 1.3, kick: .05, build: buildPistola, muzzle: new V3(0, .03, -.23), ads: { pos: new V3(0, -.079, -.36), fov: 62 }, bullet: 'pistol', fl: .22, casing: 'small', boom: 'PAH!', slide: true },
+  { id: 'bazuca', name: 'BAZUCA', desc: 'foguete · explode tudo em volta · KABOOM', dmg: 220, rate: 1.2, magSize: 1, reserveMax: 10, spread: .004, pellets: 1, reload: 2.1, kick: .09, build: buildBazuca, muzzle: new V3(0, .02, -.8), fl: .5, rocket: true },
+  { id: 'regua', name: 'RÉGUA', desc: 'corpo a corpo · voando no gancho corta mais', dmg: 80, rate: .5, melee: true, range: 2.9, build: buildRegua },
 ];
 { const ord = ['uzi', 'ak', 'pistola', 'escopeta', 'sniper', 'bazuca', 'regua']; WEAPONS.sort((a, b) => ord.indexOf(a.id) - ord.indexOf(b.id)); }
 WEAPONS.forEach(w => { w.model = w.build(); w.model.visible = false; hold.add(w.model); });
@@ -1618,8 +1618,8 @@ function fire() {
   camera.updateMatrixWorld();
   camera.getWorldDirection(_f);
   _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
-  const moving = Math.hypot(P.vel.x, P.vel.z) > 1.5;
-  let spread = w.spread * (moving ? 1.7 : 1) * (P.onGround ? 1 : 2) * (1 - .75 * adsT);
+  const moving = Mira.andando(P.vel.x, P.vel.z);
+  let spread = Mira.espalhamento(w.spread, moving, P.onGround, adsT);
   if (w.zoom) spread = zoomT > .85 ? .0004 : .035;
   const muzzle = zoomT > .5 ? camera.position.clone().addScaledVector(_u, -.25).addScaledVector(_f, .6) : vmMuzzleWorld(w);
   if (w.rocket) { smokePuffs(muzzle.clone().addScaledVector(_f, 1.2), 5, _f); for (let i = 0; i < 6; i++) puff(camera.position.clone().addScaledVector(_f, -1).add(new V3(rand(-.6, .6), rand(-.3, .3), rand(-.6, .6))), rand(.4, .8), rand(.6, 1), _f.clone().multiplyScalar(-rand(2, 4)), .4); { if (hitDirty) rebuildHitList(); ray.set(camera.position, _f); ray.far = 300; const ah = ray.intersectObjects(hitList, false)[0]; const aimP = ah ? ah.point : camera.position.clone().addScaledVector(_f, 150); spawnRocket(muzzle, aimP.sub(muzzle).normalize()); } return; }
@@ -1761,9 +1761,6 @@ function buildWList() {
 function updateWList() {
   ['p', 's', 'm'].forEach(sl => { const el = $('wl' + sl); if (el) el.className = inv[sl] === wi ? 'on' : ''; });
   $('wname').textContent = cur().name; $('wdesc').textContent = cur().desc;
-  const r = cur().ring, ring = $('ring');
-  ring.style.display = r ? 'block' : 'none';
-  ring.style.width = ring.style.height = r + 'px'; ring.style.left = ring.style.top = -r / 2 + 'px';
 }
 let bannerT = 0;
 function banner(t, s, dur = 2.6) { $('bT').textContent = t; $('bS').textContent = s || ''; $('banner').style.opacity = 1; bannerT = dur; }
@@ -1974,6 +1971,7 @@ $('play').addEventListener('click', () => {
 });
 
 // ---------- update ----------
+let miraPx = 6; // o vão da mira agora, em pixels
 const FWD = new V3(), RIGHT = new V3();
 let hookTilt = 0, adsT = 0, fovKick = 0, flashFxT = 0, muzzleLightT = 0, curFl = .2, hookCheckT = 0;
 function update(dt) {
@@ -2062,6 +2060,9 @@ function update(dt) {
   camera.updateProjectionMatrix();
   $('scope').style.opacity = zoomT > .7 ? 1 : 0;
   $('cross').style.opacity = zoomT > .7 || adsT > .4 ? 0 : 1;
+  // a mira abre e fecha com a precisão do tiro; o vão chega no alvo aos poucos, pra não tremer
+  miraPx += (Mira.abertura(Mira.espalhamento(cur().spread || 0, Mira.andando(P.vel.x, P.vel.z), P.onGround, adsT), recoil) - miraPx) * Math.min(1, dt * 18);
+  $('cross').style.setProperty('--g', miraPx.toFixed(1) + 'px');
   recoil = Math.max(0, recoil - dt * 7);
   if (flashT > 0) flashT -= dt;
   if (swingT >= 0) { swingT += dt / .32; if (swingT >= 1) swingT = -1; }
