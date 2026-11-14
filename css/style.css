@@ -90,5 +90,14 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:cros
 #play{font-family:'Gochi Hand',cursive;font-size:34px;color:var(--paper);background:var(--ink);border:none;padding:8px 34px 6px;border-radius:8px 4px 10px 5px;cursor:pointer;transform:rotate(1deg);box-shadow:3px 4px 0 var(--red)}
 #play:hover{transform:rotate(-1deg) scale(1.04)}
 #play:active{box-shadow:1px 1px 0 var(--red);transform:translate(2px,3px)}
+#nomeBox{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px}
+#nome{font:inherit;color:var(--ink);background:transparent;border:none;border-bottom:2px solid var(--ink);width:170px;padding:0 4px;outline:none;user-select:text;-webkit-user-select:text}
+#placar{font-size:17px;line-height:1.3;margin:0 0 16px}
+#placar .t{font-family:'Gochi Hand',cursive;font-size:22px;color:var(--red)}
+#placar ol{list-style:none;display:grid;grid-template-columns:auto 1fr auto auto;gap:0 14px}
+#placar li{display:contents}
+#placar li.eu span{color:var(--red)}
+#menu.semPlacar #nomeBox,#menu.semPlacar #placar{display:none}
+#menu.inicio #placar li:nth-child(n+6){display:none}
 .note{font-size:14px;opacity:.7;margin-top:14px}
 @media (max-width:700px){#score,#hpBox,#ammoBox{left:20px}.card h1{font-size:48px}#bT{font-size:40px}}

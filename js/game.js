@@ -1789,6 +1789,7 @@ function updateHUD() {
 
 // ---------- input ----------
 addEventListener('keydown', e => {
+  if (e.target === $('nome')) return; // digitando o nome: as teclas não são do jogo
   keys[e.code] = true;
   if (state !== 'play') return;
   if (buyOpen) {
@@ -1836,12 +1837,88 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('pointerlockerror', () => { noLock = true; });
 
+// ---------- placar ----------
+// O fetch é o jeito do JavaScript fazer um pedido HTTP sem trocar de página.
+// Ele demora (o pedido viaja pela rede), então devolve uma promessa: o await espera a resposta chegar.
+const API = '/api/placar';
+// O bilhete da partida: o servidor entrega um quando a partida começa, e o placar só aceita
+// pontuação que venha com ele. Não é uma senha escrita aqui no jogo: quem assina é o servidor.
+let bilhete = null;
+async function pegaBilhete() {
+  bilhete = null;
+  try {
+    const resposta = await fetch('/api/partida');
+    if (resposta.ok) bilhete = (await resposta.json()).bilhete;
+  } catch (erro) { /* sem servidor: a partida não vai pro placar */ }
+}
+
+// Desenha a lista no cartão do menu. `minha` é a posição da partida que acabou de ser enviada, se tiver.
+function mostraPlacar(melhores, minha) {
+  const caixa = $('placar');
+  caixa.replaceChildren();
+  const titulo = document.createElement('div');
+  titulo.className = 't';
+  titulo.textContent = melhores.length ? 'OS MELHORES' : 'ninguém no placar ainda';
+  caixa.appendChild(titulo);
+  const lista = document.createElement('ol');
+  melhores.forEach((linha, i) => {
+    const li = document.createElement('li');
+    if (i + 1 === minha) li.className = 'eu';
+    // textContent põe o nome como texto puro. Com innerHTML, um nome como <img onerror=...>
+    // viraria código rodando na página de todo mundo que abrisse o placar.
+    for (const texto of [i + 1 + '.', linha.nome, linha.pontos + ' pts', 'onda ' + linha.onda]) {
+      const span = document.createElement('span');
+      span.textContent = texto;
+      li.appendChild(span);
+    }
+    lista.appendChild(li);
+  });
+  caixa.appendChild(lista);
+  if (minha > melhores.length) { // fora dos dez melhores: conta em que lugar a partida ficou
+    const fora = document.createElement('div');
+    fora.textContent = 'você ficou em ' + minha + 'º';
+    caixa.appendChild(fora);
+  }
+}
+// GET: me dá o placar.
+async function carregaPlacar() {
+  try {
+    const resposta = await fetch(API);
+    if (!resposta.ok) throw new Error(resposta.status); // 404, 500...
+    mostraPlacar(await resposta.json());
+  } catch (erro) {
+    // Abriu o jogo sem servidor (por exemplo, com dois cliques no index.html): não tem API. O jogo segue sem placar.
+    $('placar').textContent = 'placar desligado';
+  }
+}
+// POST: toma, guarda esta pontuação. O corpo do pedido é um JSON, e o cabeçalho avisa o servidor disso.
+async function enviaPontuacao() {
+  const nome = $('nome').value.trim() || 'anônimo';
+  localStorage.setItem('rabisco-nome', nome); // o navegador lembra o nome pra próxima visita
+  try {
+    const resposta = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, pontos: score, onda: wave, bilhete }),
+    });
+    if (!resposta.ok) throw new Error(resposta.status);
+    const dados = await resposta.json();
+    mostraPlacar(dados.melhores, dados.posicao);
+  } catch (erro) {
+    carregaPlacar(); // não deu pra enviar: mostra o placar como estiver
+  }
+}
+$('nome').value = localStorage.getItem('rabisco-nome') || '';
+carregaPlacar();
+
 // ---------- telas ----------
 const menuBodyStart = $('menuBody').innerHTML;
 function showMenu(title, body, btn) {
   $('menu').classList.remove('hidden');
   $('menu').querySelector('h1').innerHTML = title;
   $('menuBody').innerHTML = body; $('play').textContent = btn;
+  $('menu').classList.remove('inicio'); // no menu de abertura o placar mostra só os cinco primeiros, pra caber
+  $('menu').classList.toggle('semPlacar', state === 'paused'); // na pausa o cartão fica só com as teclas
 }
 function pause() {
   closeBuy();
@@ -1852,6 +1929,7 @@ function gameOver() {
   state = 'dead'; mouseL = mouseR = false;
   try { document.exitPointerLock(); } catch (e) { }
   $('vig').style.opacity = .9;
+  enviaPontuacao();
   setTimeout(() => showMenu('VOCÊ FOI <span>APAGADO</span>', `Chegou até a <b>onda ${wave}</b> com <b>${score}</b> pontos e <b>${kills}</b> rabiscos apagados.<br>Vira a página e tenta de novo.`, 'DE NOVO'), 700);
 }
 function clearWorld() {
@@ -1872,6 +1950,7 @@ function clearWorld() {
   hitDirty = true;
 }
 function newGame() {
+  pegaBilhete();
   clearWorld(); restoreWorld();
   P.pos.set(0, 0, 5); P.vel.set(0, 0, 0); P.vy = 0; G.on = false; G.hit = false; G.missT = 0; P.hp = 100; P.yaw = 0; P.pitch = 0;
   timeTarget = 0; score = 0; wave = 0; toSpawn = 0; inter = 6; kills = 0; money = 800; P.armor = 0; waveTime = 0; closeBuy();
