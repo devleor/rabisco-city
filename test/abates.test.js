@@ -86,8 +86,7 @@ test('o jogo dá nome aos bots e mostra o abate quando um deles é apagado', () 
 });
 
 test('todo golpe num inimigo diz qual foi a arma', () => {
-  const chamadas = jogo.split('
-').filter(l => l.includes('hurtEnemy(') && !l.includes('function hurtEnemy'));
+  const chamadas = jogo.split(/\r?\n/).filter(l => l.includes('hurtEnemy(') && !l.includes('function hurtEnemy'));
   assert.strictEqual(chamadas.length, 4);
   for (const l of chamadas) assert.match(l, /hurtEnemy\(.*, (w\.name|'BAZUCA'|'CENÁRIO')\)/, l.trim().slice(0, 80));
 });
