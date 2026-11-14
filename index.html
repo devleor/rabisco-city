@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rabisco City</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="paper"></div>
+<div id="grain"></div>
+<div id="hud" class="hidden">
+  <div id="score" class="hand">PONTOS <b id="scoreV">0</b></div>
+  <div id="waveBox"><div id="waveV" class="hand">ONDA 1</div><div id="leftV"></div><div id="nextV" class="red"></div></div>
+  <div id="hpBox"><span>HP</span><div id="hpBar"><div id="hpFill" style="width:100%"></div></div><span id="hpV">100</span></div>
+  <div id="ammoBox"><span id="magV" class="hand">30</span><span id="resV">/180</span><span id="relV" class="red"></span></div>
+  <div id="wlist"></div>
+  <div id="wname" class="hand"></div>
+  <div id="wdesc"></div>
+  <div id="cross"><div class="ring" id="ring"></div><div class="dot"></div></div>
+  <div id="hitm"><i style="transform:rotate(45deg) translate(9px)"></i><i style="transform:rotate(135deg) translate(9px)"></i><i style="transform:rotate(225deg) translate(9px)"></i><i style="transform:rotate(315deg) translate(9px)"></i></div>
+  <div id="banner"><div id="bT" class="hand"></div>
+    <svg width="360" height="16" viewBox="0 0 360 16"><path d="M6 9 C70 3,140 13,210 7 S320 4,354 9" fill="none" stroke="#d42a3a" stroke-width="2.5" stroke-linecap="round"/><path d="M30 13 C110 9,200 15,330 11" fill="none" stroke="#d42a3a" stroke-width="1.3" stroke-linecap="round" opacity=".6"/></svg>
+    <div id="bS"></div></div>
+  <div id="pops"></div>
+  <div id="hook">E</div>
+</div>
+<div id="flashFx"></div>
+<div id="vig"></div>
+<div id="scope"><div class="lens"></div><div class="h"></div><div class="v"></div></div>
+<div id="menu">
+  <div class="card">
+    <h1>RABISCO <span>CITY</span></h1>
+    <div class="sub">um tiroteio desenhado à caneta na folha do caderno</div>
+    <div id="menuBody">
+      Os bonecos de palito fugiram das margens e invadiram a cidade debaixo da cúpula. Sobreviva às ondas e apague todos eles.
+      <div class="keys">
+        <span>WASD</span><span>andar · Shift corre · Espaço pula</span>
+        <span>mouse</span><span>clique atira · botão direito mira (red dot na UZI, luneta na SNIPER)</span>
+        <span>E</span><span>gancho: segura pra voar até onde mirou · Espaço = turbo de gás</span>
+        <span>1 a 7</span><span>trocar arma (ou rodinha / Q)</span>
+        <span>R</span><span>recarregar · Esc pausa</span>
+      </div>
+    </div>
+    <button id="play">JOGAR</button>
+    <div class="note">Precisa de teclado e mouse. Clique na tela pra travar o mouse.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+:root{--ink:#2a3fb0;--red:#d42a3a;--paper:#f3eedf;--green:#2e9a4a;--orange:#e08a1e}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);font-family:'Patrick Hand',cursive;color:var(--ink);user-select:none;-webkit-user-select:none}
+canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:crosshair}
+.hand{font-family:'Gochi Hand',cursive}
+.red{color:var(--red)}
+.hidden{display:none!important}
+/* folha de caderno por cima do mundo */
+#paper{position:fixed;inset:0;pointer-events:none;mix-blend-mode:multiply;
+  background-image:
+   linear-gradient(90deg,transparent 0 92px,rgba(212,42,58,.55) 92px 94px,transparent 94px),
+   repeating-linear-gradient(180deg,transparent 0 33px,rgba(80,120,200,.30) 33px 34px);}
+#grain{position:fixed;inset:0;pointer-events:none;opacity:.10;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+#hud{position:fixed;inset:0;pointer-events:none}
+#score{position:absolute;left:130px;top:22px;font-size:22px;letter-spacing:1px}
+#score b{font-size:26px}
+#waveBox{position:absolute;right:56px;top:20px;text-align:right;font-size:18px;line-height:1.25}
+#waveV{font-size:26px}
+#nextV{font-size:16px}
+#hpBox{position:absolute;left:130px;bottom:86px;display:flex;align-items:center;gap:10px;font-size:18px}
+#hpBar{width:170px;height:16px;border:1.8px solid var(--ink);border-radius:3px 6px 4px 5px;padding:2px;transform:rotate(-.6deg)}
+#hpFill{height:100%;background:repeating-linear-gradient(45deg,var(--ink) 0 2px,transparent 2px 5px);transition:width .15s}
+#hpBox.low #hpFill{background:repeating-linear-gradient(45deg,var(--red) 0 2px,transparent 2px 4px)}
+#hpBox.low{color:var(--red)}
+#ammoBox{position:absolute;left:130px;bottom:30px;font-size:20px;display:flex;align-items:baseline;gap:4px}
+#magV{font-size:46px;line-height:1}
+#relV{font-size:18px;margin-left:8px}
+#wlist{position:absolute;right:56px;bottom:96px;font-size:16px;text-align:right;line-height:1.35}
+#wlist div{opacity:.45;display:flex;justify-content:flex-end;gap:12px}
+#wlist div.on{opacity:1;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px}
+#wlist .k{display:inline-block;border:1.3px solid var(--ink);border-radius:3px;font-size:12px;padding:0 4px;line-height:15px;margin-right:4px}
+#wlist .a{min-width:58px;font-size:13px;opacity:.85}
+#wname{position:absolute;right:56px;bottom:46px;font-size:30px}
+#wdesc{position:absolute;right:56px;bottom:26px;font-size:15px}
+#cross{position:absolute;left:50%;top:50%;width:0;height:0}
+#cross .dot{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+#cross .ring{position:absolute;border:1.5px solid rgba(42,63,176,.55);border-radius:50%;transition:all .08s}
+#hitm{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
+#hitm i{position:absolute;width:12px;height:2px;background:var(--ink);left:-6px;top:-1px}
+#hitm.kill i{background:var(--red);height:3px}
+#banner{position:absolute;left:50%;top:27%;transform:translate(-50%,-50%) rotate(-2deg);text-align:center;opacity:0;transition:opacity .35s}
+#bT{font-size:64px;white-space:nowrap;line-height:1}
+#bS{font-size:20px;margin-top:2px}
+#banner svg{display:block;margin:-6px auto 0}
+#pops{position:absolute;left:50%;top:50%}
+.pop{position:absolute;white-space:nowrap;font-family:'Gochi Hand',cursive;font-size:22px;color:var(--red);animation:pop .9s ease-out forwards;transform:translate(-50%,0)}
+@keyframes pop{0%{opacity:0;margin-top:-10px}15%{opacity:1}100%{opacity:0;margin-top:-70px}}
+#hook{position:absolute;left:50%;top:50%;margin:-15px 0 0 18px;font-family:'Gochi Hand',cursive;font-size:15px;color:var(--red);opacity:0;transition:opacity .1s;white-space:nowrap}
+#hook:before{content:'';display:inline-block;width:9px;height:9px;border:1.6px solid var(--red);border-radius:50%;margin-right:4px;vertical-align:-1px}
+#flashFx{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 60% 62%,rgba(255,236,140,.95),rgba(255,214,90,.45) 35%,rgba(255,214,90,0) 75%)}
+#booms{position:absolute;inset:0}
+.boom{position:absolute;font-family:'Gochi Hand',cursive;font-size:56px;color:#f6c344;-webkit-text-stroke:2px #2a3fb0;text-shadow:3px 4px 0 #d42a3a;letter-spacing:2px;animation:boom .75s ease-out forwards;transform:translate(-50%,-50%) rotate(var(--r))}
+.boom.big{font-size:104px;-webkit-text-stroke:3px #2a3fb0;text-shadow:5px 6px 0 #d42a3a}
+@keyframes boom{0%{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) scale(.3)}12%{opacity:1;transform:translate(-50%,-50%) rotate(var(--r)) scale(1.18)}65%{opacity:1;transform:translate(-50%,-50%) rotate(var(--r)) scale(1)}100%{opacity:0;transform:translate(-50%,-56%) rotate(var(--r)) scale(.96)}}
+#vig{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(212,42,58,.25) 70%,rgba(212,42,58,.7))}
+#scope{position:fixed;inset:0;pointer-events:none;opacity:0}
+#scope .lens{position:absolute;left:50%;top:50%;width:68vmin;height:68vmin;transform:translate(-50%,-50%);border-radius:50%;
+  box-shadow:0 0 0 3px var(--ink),0 0 0 9px rgba(224,138,30,.6),0 0 0 200vmax rgba(243,238,223,.97)}
+#scope .h,#scope .v{position:absolute;background:var(--ink)}
+#scope .h{left:calc(50% - 34vmin);width:68vmin;top:50%;height:1.5px}
+#scope .v{top:calc(50% - 34vmin);height:68vmin;left:50%;width:1.5px}
+#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(243,238,223,.35)}
+.card{position:relative;background:var(--paper);border:2px solid var(--ink);border-radius:6px 14px 8px 12px;padding:30px 44px 26px;max-width:560px;width:calc(100% - 40px);transform:rotate(-1deg);
+  box-shadow:6px 7px 0 rgba(42,63,176,.18)}
+.card:before{content:'';position:absolute;inset:6px -6px -6px 6px;border:1.3px solid rgba(42,63,176,.45);border-radius:10px 6px 14px 8px;z-index:-1}
+.card h1{font-family:'Gochi Hand',cursive;font-size:68px;line-height:1;letter-spacing:2px;font-weight:400}
+.card h1 span{color:var(--red)}
+.sub{font-size:20px;margin:4px 0 16px}
+#menuBody{font-size:19px;line-height:1.45;margin-bottom:18px}
+#menuBody b{font-family:'Gochi Hand',cursive;font-weight:400;font-size:24px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:2px 16px;font-size:17px;margin:6px 0 4px}
+.keys span:nth-child(odd){font-family:'Gochi Hand',cursive;color:var(--red)}
+#play{font-family:'Gochi Hand',cursive;font-size:34px;color:var(--paper);background:var(--ink);border:none;padding:8px 34px 6px;border-radius:8px 4px 10px 5px;cursor:pointer;transform:rotate(1deg);box-shadow:3px 4px 0 var(--red)}
+#play:hover{transform:rotate(-1deg) scale(1.04)}
+#play:active{box-shadow:1px 1px 0 var(--red);transform:translate(2px,3px)}
+.note{font-size:14px;opacity:.7;margin-top:14px}
+@media (max-width:700px){#score,#hpBox,#ammoBox{left:20px}.card h1{font-size:48px}#bT{font-size:40px}}
