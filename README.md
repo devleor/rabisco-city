@@ -64,6 +64,10 @@ O que fica guardado é um JSON com as 100 melhores linhas e os bilhetes já usad
 | R | recarregar |
 | Esc | pausa |
 
+## Feed de abates
+
+Cada boneco nasce com um nome (`BOT Zé`, `BOT Borrão`...). Quando alguém é apagado, aparece uma linha no canto de cima, como no CS: quem apagou, a arma, e quem foi apagado. Tiro na cabeça ganha uma marca, e a linha dos seus abates tem a borda vermelha. Quando é um bot que apaga você, a linha mostra o nome dele e o golpe (`SOCO`, `PANCADA`, `CUSPE`).
+
 ## Armas
 
 UZI · AK-47 · Pistola · Escopeta · Sniper (atravessa inimigos) · Bazuca (explosão em área, destrói o cenário, dá pra fazer rocket jump) · Régua (corpo a corpo, mais forte voando no gancho).
@@ -89,6 +93,7 @@ Os prédios são feitos de andares empilhados. A explosão da bazuca destrói an
 index.html      HUD, menu e carregamento do Three.js
 css/style.css   visual do HUD e da folha de caderno
 js/game.js      o jogo inteiro (mundo, armas, inimigos, gancho, som, placar)
+js/abates.js    o feed de abates no canto: quem apagou quem, e com qual arma
 lib/placar.js   as regras do placar (conferir, ordenar, bilhete assinado)
 server.js       servidor local: arquivos do jogo + API do placar num arquivo JSON
 api/            a mesma API na Vercel, guardando o JSON no Blob

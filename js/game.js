@@ -520,7 +520,7 @@ function updateFalling(dt) {
     so.b.minY = ny; so.b.maxY = ny + h; so.mesh.position.y = ny;
     for (const e of enemies.slice()) {
       const ep = e.g.position;
-      if (ep.x > so.b.minX - .3 && ep.x < so.b.maxX + .3 && ep.z > so.b.minZ - .3 && ep.z < so.b.maxZ + .3 && so.b.minY < 2 * e.T.scale) hurtEnemy(e, 999, ep.clone().setY(1), new V3(0, -1, 0), false);
+      if (ep.x > so.b.minX - .3 && ep.x < so.b.maxX + .3 && ep.z > so.b.minZ - .3 && ep.z < so.b.maxZ + .3 && so.b.minY < 2 * e.T.scale) hurtEnemy(e, 999, ep.clone().setY(1), new V3(0, -1, 0), false, 'CENÁRIO');
     }
     if (P.pos.x > so.b.minX - .3 && P.pos.x < so.b.maxX + .3 && P.pos.z > so.b.minZ - .3 && P.pos.z < so.b.maxZ + .3 && so.b.minY < P.pos.y + 1.75 && so.b.maxY > P.pos.y + .5 && !so.hitPlayer) { so.hitPlayer = true; damagePlayer(20); }
     if (hit) {
@@ -1210,14 +1210,14 @@ function explode(p, n, dmg) {
     if (d < R + .4 * e.T.scale) {
       const k = 1 - Math.min(1, d / R) * .7;
       const dir = c.clone().sub(p).setY(0); if (dir.lengthSq() < 1e-4) dir.set(rand(-1, 1), 0, rand(-1, 1)); dir.normalize();
-      hurtEnemy(e, dmg * k, c, dir, false);
+      hurtEnemy(e, dmg * k, c, dir, false, 'BAZUCA');
       if (!e.dead) e.vel.addScaledVector(dir, 10 * k);
     }
   }
   if (dP < R) {
     const k = 1 - dP / R, kb = new V3(P.pos.x, P.pos.y + 1, P.pos.z).sub(p).normalize();
     P.vel.x += kb.x * 16 * k; P.vel.z += kb.z * 16 * k; P.vy += Math.max(0, kb.y) * 10 * k + 9 * k; P.onGround = false;
-    damagePlayer(Math.round(4 + 12 * k));
+    damagePlayer(Math.round(4 + 12 * k), nomeJogador(), 'BAZUCA');
   }
   damageEnv(p, R, dmg);
   // marca de queimado + bolas de fogo desenhadas + fumaça + anéis
@@ -1373,7 +1373,7 @@ const PEN = (() => {
 })();
 function makeEnemy(type, x, z) {
   const T0 = TYPES[type], g = new THREE.Group(), th = T0.th;
-  const e = { type, T: T0, g, hp: T0.hp * (1 + (wave - 1) * .08), vel: new V3(), wind: 0, cd: rand(.6, 1.4), stuck: 0, detour: 0, dDir: 1, walk: rand(0, 6), amp: 0, flash: 0, flinch: 0, slam: 0, drawT: 0, drawIdx: -1, parts: [], strafe: Math.random() < .5 ? -1 : 1, dead: false, power: 5 };
+  const e = { type, nome: Abates.nomeDeBot(), T: T0, g, hp: T0.hp * (1 + (wave - 1) * .08), vel: new V3(), wind: 0, cd: rand(.6, 1.4), stuck: 0, detour: 0, dDir: 1, walk: rand(0, 6), amp: 0, flash: 0, flinch: 0, slam: 0, drawT: 0, drawIdx: -1, parts: [], strafe: Math.random() < .5 ? -1 : 1, dead: false, power: 5 };
   const mat = new THREE.MeshBasicMaterial({ color: type === 'brute' ? 0x1d2b8f : INK });
   e.mat = mat; e.baseHex = mat.color.getHex(); e.base = mat.color.clone();
   const hipY = .95;
@@ -1470,8 +1470,9 @@ function popup(txt, color) {
 }
 let hitmT = 0;
 function hitmark(kill) { const h = $('hitm'); h.className = kill ? 'kill' : ''; h.style.opacity = 1; hitmT = kill ? .25 : .12; }
-function hurtEnemy(e, dmg, point, dir, head) {
+function hurtEnemy(e, dmg, point, dir, head, arma) {
   if (e.dead) return;
+  if (arma) e.por = arma; // a arma do último acerto: é ela que aparece no feed de abates
   e.hp -= dmg; e.flash = .1; e.flinch = .14;
   e.power = Math.min(24, 4 + dmg * .1);
   e.vel.addScaledVector(new V3(dir.x, 0, dir.z).normalize(), Math.min(7, dmg * .05) / e.T.scale);
@@ -1501,6 +1502,7 @@ function killEnemy(e, head, dir) {
   const cash = (e.type === 'brute' ? 900 : e.type === 'spitter' ? 350 : 300) + (head ? 100 : 0); money = Math.min(16000, money + cash);
   setTimeout(() => popup('+$' + cash, '#2e9a4a'), 120);
   popup((head ? 'na cabeça! ' : 'apagado! ') + '+' + pts);
+  Abates.mostra($('abates'), nomeJogador(), e.por, e.nome, head, true);
   hitmark(true); SFX.kill();
   const p = e.g.position;
   floorSplat(p.x, 1, p.z, 2.2 * e.T.scale + rand(0, .8));
@@ -1539,14 +1541,16 @@ function spit(e) {
   target.addScaledVector(P.vel, from.distanceTo(target) / 16 * .6);
   const v = target.sub(from).normalize().multiplyScalar(16);
   const m = new THREE.Mesh(spitGeo, spitMat); m.position.copy(from); m.add(ink(spitGeo, INK, .02, 30)); scene.add(m);
-  projs.push({ m, v, life: 4 }); SFX.spit();
+  projs.push({ m, v, life: 4, de: e.nome }); SFX.spit();
 }
-function damagePlayer(d) {
+// quem e arma são de quem bateu: aparecem no feed se este for o golpe final
+function damagePlayer(d, quem, arma) {
   if (state !== 'play') return;
   if (P.armor > 0) { const ab = Math.min(P.armor, d * .5); P.armor -= ab; d -= ab; }
   P.hp -= d; vigT = 1; shake = .25; SFX.hurt();
-  if (P.hp <= 0) { P.hp = 0; gameOver(); }
+  if (P.hp <= 0) { P.hp = 0; Abates.mostra($('abates'), quem || 'CIDADE', arma || 'CENÁRIO', nomeJogador(), false, false); gameOver(); }
 }
+const nomeJogador = () => $('nome').value.trim() || 'você';
 
 // pickups
 function spawnPickup(kind, x, z) {
@@ -1592,7 +1596,7 @@ function fire() {
       const ex = e.g.position.x, ez = e.g.position.z, dx = ex - P.pos.x, dz = ez - P.pos.z, d = Math.hypot(dx, dz);
       const dy = (P.pos.y + 1.2) - 1.3 * e.T.scale;
       if (d < range + .4 * e.T.scale && Math.abs(dy) < 2.6 && (dx * _f.x + dz * _f.z) / (d || 1) > .4) {
-        hurtEnemy(e, w.dmg * bonus, new V3(ex, clamp(P.pos.y + 1.2, .5, 1.7 * e.T.scale), ez), _f.clone(), false); hit = true;
+        hurtEnemy(e, w.dmg * bonus, new V3(ex, clamp(P.pos.y + 1.2, .5, 1.7 * e.T.scale), ez), _f.clone(), false, w.name); hit = true;
       }
     }
     if (hit) { shake = .12; if (speed > 12) popup('CORTE AÉREO!', '#2a3fb0'); }
@@ -1635,7 +1639,7 @@ function fire() {
       for (const { e, h } of victims) {
         let dmg = w.dmg * (h.object.userData.head ? 2 : 1);
         if (w.pellets > 1) dmg *= Math.max(.3, 1 - Math.max(0, h.distance - 7) / 20);
-        hurtEnemy(e, dmg, h.point, d, h.object.userData.head);
+        hurtEnemy(e, dmg, h.point, d, h.object.userData.head, w.name);
       }
       if (wallHit && wallHit.face) {
         const nn = wallHit.face.normal.clone().transformDirection(wallHit.object.matrixWorld);
@@ -1951,6 +1955,7 @@ function clearWorld() {
 }
 function newGame() {
   pegaBilhete();
+  Abates.limpa($('abates'));
   clearWorld(); restoreWorld();
   P.pos.set(0, 0, 5); P.vel.set(0, 0, 0); P.vy = 0; G.on = false; G.hit = false; G.missT = 0; P.hp = 100; P.yaw = 0; P.pitch = 0;
   timeTarget = 0; score = 0; wave = 0; toSpawn = 0; inter = 6; kills = 0; money = 800; P.armor = 0; waveTime = 0; closeBuy();
@@ -2133,7 +2138,7 @@ function update(dt) {
     const p = projs[i], prev = p.m.position.clone();
     p.v.y -= 3 * dt; p.m.position.addScaledVector(p.v, dt); p.life -= dt; p.m.rotation.x += dt * 5;
     let done = false;
-    if (p.m.position.distanceTo(eye) < .75) { damagePlayer(9 + wave * .5); done = true; }
+    if (p.m.position.distanceTo(eye) < .75) { damagePlayer(9 + wave * .5, p.de, 'CUSPE'); done = true; }
     else {
       const seg = p.m.position.clone().sub(prev), L = seg.length();
       ray.set(prev, seg.normalize()); ray.far = L;
@@ -2248,7 +2253,7 @@ function updateEnemy(e, dt) {
     e.wind -= dt;
     if (e.wind <= 0 && e.type === 'spitter') { e.slam = .22; if (e.spitPending) { e.spitPending = false; spit(e); } }
     if (e.wind <= 0 && e.type !== 'spitter') {
-      if (dist < T0.reach + .7 && P.pos.y < 1.4) damagePlayer(T0.dmg + wave * .5);
+      if (dist < T0.reach + .7 && P.pos.y < 1.4) damagePlayer(T0.dmg + wave * .5, e.nome, e.type === 'brute' ? 'PANCADA' : 'SOCO');
       e.cd = T0.cd; e.slam = .22;
     }
   }
