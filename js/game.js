@@ -620,7 +620,7 @@ const flash = (() => {
   return sp;
 })();
 // Os números da arma. rate é o tempo mínimo entre dois tiros, kick é o coice, spread é o espalhamento.
-const ARMA = { rate: .16, kick: .022, spread: .006, timer: 0 };
+const ARMA = { rate: .26, kick: .05, spread: .008, timer: 0 };
 
 // ---------- estado ----------
 // O jogador (P, de player). `pos` é onde estão os pés dele. `yaw` é pra que lado ele está virado
@@ -790,9 +790,10 @@ function update(dt) {
   camera.position.set(P.pos.x, P.pos.y + 1.62, P.pos.z);
   camera.rotation.set(P.pitch, P.yaw, 0);
 
-  // A arma: enquanto o botão estiver apertado, atira sempre que o tempo entre dois tiros já passou.
+  // A pistola é semiautomática: um tiro por clique, e só se o tempo entre dois tiros já passou.
+  // Depois do tiro o clique é "gasto" (mouseL volta a ser falso): pra atirar de novo, tem que clicar de novo.
   ARMA.timer -= dt;
-  if (mouseL && ARMA.timer <= 0) fire();
+  if (mouseL && ARMA.timer <= 0) { fire(); mouseL = false; }
   updateFx(dt);
   // O coice e o clarão vão sumindo sozinhos.
   recoil = Math.max(0, recoil - dt * 9);
