@@ -1,5 +1,7 @@
 # Etapa 0: jogo da velha
 
+![O jogo da velha rodando](docs/etapa.gif)
+
 Antes do Rabisco City, um jogo pequeno pra ver os três tipos de arquivo de uma página trabalhando juntos.
 
 | Arquivo | Papel | O que tem dentro |
@@ -23,4 +25,4 @@ No vídeo o jogo é montado em três passos, e dá pra parar em cada um:
 2. **Com o `jogo.js`** (a linha do `<script>` no fim do `body`): o jogo funciona, ainda sem estilo.
 3. **Com o `estilo.css`** (a linha do `<link>` no `head`): o mesmo jogo com cara de caderno.
 
-As etapas seguintes (`etapa-01-a-folha` em diante) são o Rabisco City.
+As etapas seguintes (`etapa-01-a-folha` em diante) são o Rabisco City. Elas rodam com um servidor de arquivos, sempre na porta 3333: `npx serve -l 3333 .` e abra http://localhost:3333.
