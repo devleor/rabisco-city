@@ -1,5 +1,7 @@
 # Rabisco City, passo a passo
 
+![A etapa 9 rodando](docs/etapa.gif)
+
 Um jogo de tiro em primeira pessoa no navegador, desenhado à caneta numa folha de caderno.
 Feito com **Three.js (r128)** e JavaScript puro: sem instalar biblioteca, sem etapa de build.
 
@@ -7,6 +9,7 @@ Este repositório guarda o jogo construído em etapas. Cada etapa é uma branch,
 
 | Branch | O que entra |
 | --- | --- |
+| `etapa-00-jogo-da-velha` | antes de tudo: um jogo da velha em HTML, JavaScript e CSS |
 | `etapa-01-a-folha` | a página, a cena, a câmera, o renderer, o chão e uma caixa |
 | `etapa-02-traco-de-caneta` | texturas de hachura desenhadas em canvas e o contorno que "ferve" |
 | `etapa-03-a-cidade` | ruas, quarteirões sorteados com semente, parque, andaime, lápis gigante e cúpula |
@@ -32,12 +35,14 @@ git diff etapa-04-andar etapa-05-colisao
 
 ## Rodar
 
+A porta é sempre a **3333**, em todas as etapas.
+
 Até a etapa 8 o jogo é só arquivo parado: qualquer servidor de arquivos serve.
 
 ```bash
-npx serve .
+npx serve -l 3333 .
 # ou
-python -m http.server 8000
+python -m http.server 3333
 ```
 
 Da etapa 9 em diante o jogo tem um servidor próprio, que entrega os arquivos e responde o placar:
