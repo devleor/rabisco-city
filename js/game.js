@@ -1,6 +1,6 @@
-// RABISCO CITY, etapa 4: andar.
-// A câmera vira os olhos do jogador: o mouse gira a cabeça e o teclado move o corpo.
-// Ainda não tem colisão: dá pra atravessar os prédios. Isso é a próxima etapa.
+// RABISCO CITY, etapa 5: colisão.
+// O que a gente vê são meshes. O que segura o jogador são colisores: caixas invisíveis, feitas só de números.
+// Cada caixa do cenário ganha a sua, e o jogador para de atravessar parede e passa a subir em caixote.
 (() => {
 'use strict';
 
@@ -215,10 +215,14 @@ function ink(geo, color = INK, j = 0.03) {
 }
 
 // ---------- mundo ----------
+// Os colisores do mapa. Cada um guarda só seis números: onde a caixa começa e termina em cada eixo.
+// O nome técnico é AABB, uma caixa alinhada com os eixos. É a conta de colisão mais barata que existe.
+const boxes = [];
+
 // A peça de montar do jogo inteiro: uma caixa com hachura e contorno.
 // x e z dizem onde ela fica no chão, w, d e h são a largura, a profundidade e a altura,
-// e y0 é a altura da base (0 = no chão).
-function addBox(x, z, w, d, h, style = 'hatch', y0 = 0, color = INK) {
+// e y0 é a altura da base (0 = no chão). Com `collide` falso ela é só enfeite: dá pra atravessar.
+function addBox(x, z, w, d, h, style = 'hatch', y0 = 0, color = INK, collide = true) {
   const geo = new THREE.BoxGeometry(w, h, d);
   geo.translate(0, h / 2, 0); // sobe a forma pra a base ficar no zero
   worldUV(geo);
@@ -228,6 +232,7 @@ function addBox(x, z, w, d, h, style = 'hatch', y0 = 0, color = INK) {
   // caixa grande, traço mais solto
   m.add(ink(geo, color, Math.min(0.08, 0.02 + Math.max(w, h, d) * 0.004)));
   scene.add(m);
+  if (collide) boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, minY: y0, maxY: y0 + h });
   return m;
 }
 
@@ -279,7 +284,7 @@ function building(x, z, w, d, h) {
   const style = rng() < 0.62 ? 'win' : 'hatch'; // seis em cada dez têm janelas
   addBox(x, z, w, d, h, style);
   if (rng() < 0.5) addBox(x + (rng() - .5) * w * .4, z + (rng() - .5) * d * .4, rand(1.2, 2.5), rand(1.2, 2.5), rand(1, 2.2), 'crate', h);
-  if (rng() < 0.4) addBox(x, z + d / 2 + 0.7, w * 0.6, 1.4, 0.15, 'plain', 3.2);
+  if (rng() < 0.4) addBox(x, z + d / 2 + 0.7, w * 0.6, 1.4, 0.15, 'plain', 3.2, INK, false); // o toldo não tem colisor
 }
 // Um parque: caixotes coloridos espalhados (alguns empilhados) e uma mureta.
 function park(bx, bz) {
@@ -342,6 +347,8 @@ addBox(0, 0, 2.6, 2.6, 1, 'brick');
     mesh.add(ink(g, c, .03));
     scene.add(mesh);
   });
+  // O lápis não foi feito com addBox, então o colisor dele é escrito à mão: uma caixa fina e alta.
+  boxes.push({ minX: -.6, maxX: .6, minZ: -.6, maxZ: .6, minY: 0, maxY: 8 });
 })();
 // uns caixotes e muretas em volta da praça
 addBox(7, 6, 1.6, 1.6, 1.6, 'crate', 0, GREEN); addBox(7, 6, 1.1, 1.1, 1.1, 'crate', 1.6, GREEN);
@@ -353,7 +360,7 @@ addBox(-3, 9, 3, 0.6, 1.1, 'brick');
 seed = 99;
 for (let a = 0; a < Math.PI * 2; a += 0.16) {
   const r = 70 + rng() * 17;
-  addBox(Math.cos(a) * r, Math.sin(a) * r, 7 + rng() * 8, 7 + rng() * 8, 12 + rng() * 17, rng() < .6 ? 'win' : 'hatch');
+  addBox(Math.cos(a) * r, Math.sin(a) * r, 7 + rng() * 8, 7 + rng() * 8, 12 + rng() * 17, rng() < .6 ? 'win' : 'hatch', 0, INK, false);
 }
 // As nuvens: cada uma são quatro ovais riscadas, viradas pro meio da cidade.
 for (let i = 0; i < 9; i++) {
@@ -408,6 +415,47 @@ const DOME_R = 112, DOME_Y = -26;
   }
   lineSegs(rib, lm(INK, .85, false));
 })();
+
+// ---------- colisão ----------
+// O jogador é um cilindro: um círculo no chão (raio r) com uma altura.
+
+// Um degrau de até 55 cm ele sobe sozinho. Mais alto que isso é parede.
+const STEP = 0.55;
+
+// A altura do chão embaixo de um ponto: o topo da caixa mais alta em que ele consegue pisar.
+// `feet` é a altura dos pés. Uma caixa cujo topo está acima de feet + STEP não é chão, é parede.
+function groundAt(x, z, feet, r) {
+  let g = 0;
+  for (const b of boxes) {
+    if (x + r > b.minX && x - r < b.maxX && z + r > b.minZ && z - r < b.maxZ && b.maxY <= feet + STEP && b.maxY > g) g = b.maxY;
+  }
+  return g;
+}
+
+// Empurra o jogador pra fora das caixas em que ele entrou. Roda depois de andar.
+function pushOut(pos, r, feet, height) {
+  for (const b of boxes) {
+    // Caixas em que ele pisa, e as que passam por cima da cabeça, não atrapalham.
+    if (b.maxY <= feet + STEP || b.minY >= feet + height) continue;
+    // O ponto da caixa mais perto do centro do jogador. O clamp "encosta" o ponto na caixa.
+    const cx = clamp(pos.x, b.minX, b.maxX), cz = clamp(pos.z, b.minZ, b.maxZ);
+    const dx = pos.x - cx, dz = pos.z - cz, d2 = dx * dx + dz * dz;
+    if (d2 >= r * r) continue; // mais longe que o raio: não encostou
+    if (d2 > 1e-8) {
+      // Encostou: desliza pra fora, na direção que vai da caixa pro jogador, até ficar a um raio dela.
+      const d = Math.sqrt(d2);
+      pos.x = cx + dx / d * r;
+      pos.z = cz + dz / d * r;
+    } else {
+      // O centro está DENTRO da caixa. Sai pelo lado mais perto.
+      const l = pos.x - b.minX, rr = b.maxX - pos.x, n = pos.z - b.minZ, f = b.maxZ - pos.z, m = Math.min(l, rr, n, f);
+      if (m === l) pos.x = b.minX - r;
+      else if (m === rr) pos.x = b.maxX + r;
+      else if (m === n) pos.z = b.minZ - r;
+      else pos.z = b.maxZ + r;
+    }
+  }
+}
 
 // ---------- estado ----------
 // O jogador (P, de player). `pos` é onde estão os pés dele. `yaw` é pra que lado ele está virado
@@ -495,15 +543,33 @@ function update(dt) {
   // posição = posição + velocidade × tempo
   P.pos.x += P.vel.x * dt;
   P.pos.z += P.vel.z * dt;
-  // não sai da cidade
+  // Andou. Agora os colisores corrigem: se entrou numa parede, é empurrado pra fora.
+  const bx = P.pos.x, bz = P.pos.z;
+  pushOut(P.pos, .4, P.pos.y, 1.75); // raio 0,4 e altura 1,75
   P.pos.x = clamp(P.pos.x, -57.5, 57.5);
   P.pos.z = clamp(P.pos.z, -57.5, 57.5);
+  // Se foi empurrado, a parte da velocidade que ia contra a parede é zerada.
+  // Sobra a parte ao longo dela: é por isso que ele desliza na parede em vez de grudar.
+  const pdx = P.pos.x - bx, pdz = P.pos.z - bz, pl = Math.hypot(pdx, pdz);
+  if (pl > 1e-6) {
+    const nx = pdx / pl, nz = pdz / pl, vn = P.vel.x * nx + P.vel.z * nz;
+    if (vn < 0) { P.vel.x -= vn * nx; P.vel.z -= vn * nz; }
+  }
 
   // O pulo: um empurrão pra cima. Daí a gravidade puxa a velocidade pra baixo o tempo todo.
   if (keys.Space && P.onGround) { P.vy = 7.6; P.onGround = false; }
+  const prevY = P.pos.y;
   P.vy -= 22 * dt;
   P.pos.y += P.vy * dt;
-  if (P.pos.y <= 0) { P.pos.y = 0; P.vy = 0; P.onGround = true; } // chegou no chão
+  // Subindo, a cabeça pode bater por baixo de uma caixa (uma laje do andaime, por exemplo).
+  if (P.vy > 0) for (const b of boxes) {
+    if (P.pos.x + .3 > b.minX && P.pos.x - .3 < b.maxX && P.pos.z + .3 > b.minZ && P.pos.z - .3 < b.maxZ
+      && prevY + 1.75 <= b.minY + .01 && P.pos.y + 1.75 > b.minY) { P.pos.y = b.minY - 1.75; P.vy = 0; }
+  }
+  // O chão já não é sempre o zero: é o topo do que estiver embaixo dos pés.
+  const gy = groundAt(P.pos.x, P.pos.z, Math.max(prevY, P.pos.y), .3);
+  if (P.pos.y <= gy) { P.pos.y = gy; P.vy = 0; P.onGround = true; }
+  else P.onGround = P.pos.y - gy < .02; // saiu da beirada de um caixote: está no ar
 
   // A câmera fica na altura dos olhos, 1,62 acima dos pés.
   camera.position.set(P.pos.x, P.pos.y + 1.62, P.pos.z);
